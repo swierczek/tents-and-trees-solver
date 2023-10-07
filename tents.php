@@ -29,6 +29,7 @@ class TentSolver {
     const NOTHING = '';
 
     const INPUT_UNKNOWN = '.';
+    const INPUT_UNKNOWN2 = ' ';
 
     const PATTERN_UNKNOWN = 'o';
     const PATTERN_KNOWN = 'x';
@@ -85,7 +86,10 @@ class TentSolver {
             ],
         ],
         3 => [
-
+            //ooxooxo means the last o will be a tent
+            'ooxoox(o)' => [
+                'marker' => self::TENT,
+            ],
         ],
         4 => [
 
@@ -110,15 +114,19 @@ class TentSolver {
         foreach($lines as $row => $l) {
             if ($row === 0) {
                 $this->colCounts = str_split($l);
+                $this->numCols = count($this->colCounts);
                 continue;
             }
+
+            // if the input is just ..x but there are more empty spaces, pad it
+            $l = str_pad($l, $this->numCols, self::INPUT_UNKNOWN);
 
             // see note about laziness at the top of the class file
             $split = [];
             foreach(str_split($l) as $y => $cell) {
                 if ($y === 0) {
                     $this->rowCounts[] = $cell;
-                } else if ($cell === self::INPUT_UNKNOWN) {
+                } else if ($cell === self::INPUT_UNKNOWN || $cell === self::INPUT_UNKNOWN2) {
                     $split[] = self::UNKNOWN;
                 } else {
                     $split[] = self::TREE;
@@ -130,8 +138,7 @@ class TentSolver {
             $this->map[$row-1] = array_values($split);
         }
 
-        $this->numRows = count($this->map);
-        $this->numCols = count($this->map[0]);
+        $this->numRows = count($this->rowCounts);
     }
 
     /**
@@ -302,7 +309,7 @@ class TentSolver {
             $right = intval($right === self::UNKNOWN);
 
             // only one last spot to put it!
-            if ($counts[self::UNKNOWN] === 1 && ($counts[self::NOTHING] + $counts[self::GRASS] + $counts[self::TREE] === 4)) {
+            if ($counts[self::UNKNOWN] === 1 && (@$counts[self::NOTHING] + @$counts[self::GRASS] + @$counts[self::TREE] === 4)) {
                 if ($above) {
                     echo '<pre>';
                     var_dump('above');
