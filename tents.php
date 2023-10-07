@@ -47,6 +47,10 @@ class TentSolver {
     // $x,$y tree => $x,$y tent
     private $pairs = [];
 
+    // used to split the patterns into separate tokens so we can reverse it
+    // a single o or x with {} format, or a single o or x, or parenthesis with 1+ o or x
+    const PATTERN_REVERSE = '/([ox]{1}\{\d,?\})|([ox]{1})|(\([ox]+\))/';
+
     // o represents unknown spaces, x represents known spaces (but we don't care what their value is)
     private $patterns = [
         0 => [], // nothing left to find!
@@ -70,10 +74,10 @@ class TentSolver {
                 'marker' => self::GRASS,
             ],
             //oooxo means the x in other rows will be grass
-            'o{3}(x)o' => [
+            'ooo(x)o' => [
                 'marker' => self::GRASS,
             ],
-            //oxxxxxoo means the first o will be a tent
+            //oxxoo means the first o will be a tent
             '(o)x{2,}oo' => [
                 'marker' => self::TENT,
             ],
@@ -580,6 +584,13 @@ class TentSolver {
         for($y=0; $y<$this->numRows; $y++) {
             $row = $this->getRow($y);
 
+            $remainingTents = $this->rowCounts[$y] - $this->count($row, self::TENT);
+
+            if ($remainingTents < 0) {
+                e('ERROR TOO MANY TENTS in row ' . $y);
+                die;
+            }
+
             // for regex matching purposes, we only care about empty vs non-empty
             // so string replace everything that's not empty to a single value
             // (this also keeps the regex looking simpler)
@@ -588,45 +599,54 @@ class TentSolver {
             $rowString = str_replace([self::TREE, self::GRASS, self::TENT], self::PATTERN_KNOWN, $rowString); // x
             $rowString = str_replace(self::UNKNOWN, self::PATTERN_UNKNOWN, $rowString); // o
 
-            // we may also need to match on the reversed string in case the order of cells is flipped
-            // TODO: handle this in the loop somehow
-            // $rowStringReversed = strrev($rowString);
-
-            $remainingTents = $this->rowCounts[$y] - $this->count($row, self::TENT);
-
-            if ($remainingTents < 0) {
-                e('ERROR TOO MANY TENTS in row ' . $y);
-                die;
-            }
-
             foreach($this->patterns[$remainingTents] as $pattern => $details) {
+                // set up the reversed pattern too
+                $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
+                if (!$matchedPattern) {
+                    e('REVERSE PATTERN NOT FOUND: '.$pattern);
+                    die;
+                }
+                $reversePattern = implode('', array_reverse($patternMatches[0]));
+
+                // match the pattern?
                 $regex = self::PATTERN_PREFIX . $pattern . self::PATTERN_SUFFIX;
                 $matched = preg_match($regex, $rowString, $matches, PREG_OFFSET_CAPTURE);
 
-                // no match
-                if ($matched === 0) {
-                    continue;
-                }
+                $reverseRegex = self::PATTERN_PREFIX . $reversePattern . self::PATTERN_SUFFIX;
+                $reverseMatched = preg_match($reverseRegex, $rowString, $reverseMatches, PREG_OFFSET_CAPTURE);
 
-                e('Pattern matched');
-                e('   row: ' . $y);
-                e('   rowString: ' . $rowString);
-                e('   pattern: ' . $pattern);
+                foreach([$matches, $reverseMatches] as $key => $match) {
+                    if (count($match) === 0) {
+                        continue;
+                    }
 
-                // $matches[x][1] is the byte offset in the string of the matched pattern (for a single pattern)
+                    if ($key == 0) {
+                        e('REGULAR PATTERN MATCHED');
+                        e('   row: ' . $y);
+                        e('   rowString: ' . $rowString);
+                        e('   pattern: ' . $pattern);
+                    } else {
+                        e('REVERSED PATTERN MATCHED');
+                        e('   row: ' . $y);
+                        e('   rowString: ' . $rowString);
+                        e('   reversePattern: ' . $reversePattern);
+                    }
 
-                for($j=1; $j<count($matches); $j++) {
-                    $chars = str_split($matches[$j][0]);
-                    $x = $matches[$j][1];
+                    // $matches[x][1] is the byte offset in the string of the matched pattern (for a single pattern)
 
-                    if ($details['marker'] === self::GRASS) {
-                        // loop over every matched character in case we need to mark multiple grasses
-                        for($c=0; $c<count($chars); $c++) {
-                            $changed = $this->mark($x+$c, $y-1, $details['marker']) || $changed;
-                            $changed = $this->mark($x+$c, $y+1, $details['marker']) || $changed;
+                    for($j=1; $j<count($match); $j++) {
+                        $chars = str_split($match[$j][0]);
+                        $x = $match[$j][1];
+
+                        if ($details['marker'] === self::GRASS) {
+                            // loop over every matched character in case we need to mark multiple grasses
+                            for($c=0; $c<count($chars); $c++) {
+                                $changed = $this->mark($x+$c, $y-1, $details['marker']) || $changed;
+                                $changed = $this->mark($x+$c, $y+1, $details['marker']) || $changed;
+                            }
+                        } else if ($details['marker'] === self::TENT) {
+                            $changed = $this->markTent($x, $y) || $changed;
                         }
-                    } else if ($details['marker'] === self::TENT) {
-                        $changed = $this->markTent($x, $y) || $changed;
                     }
                 }
             }
