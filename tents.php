@@ -119,7 +119,7 @@ class TentSolver {
             }
 
             // if the input is just ..x but there are more empty spaces, pad it
-            $l = str_pad($l, $this->numCols, self::INPUT_UNKNOWN);
+            $l = str_pad($l, $this->numCols+1, self::INPUT_UNKNOWN);
 
             // see note about laziness at the top of the class file
             $split = [];
@@ -309,7 +309,7 @@ class TentSolver {
             $right = intval($right === self::UNKNOWN);
 
             // only one last spot to put it!
-            if ($counts[self::UNKNOWN] === 1 && (@$counts[self::NOTHING] + @$counts[self::GRASS] + @$counts[self::TREE] === 4)) {
+            if (@$counts[self::UNKNOWN] === 1 && (@$counts[self::NOTHING] + @$counts[self::GRASS] + @$counts[self::TREE] === 4)) {
                 if ($above) {
                     echo '<pre>';
                     var_dump('above');
