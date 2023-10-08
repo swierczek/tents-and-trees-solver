@@ -56,51 +56,50 @@ class TentSolver {
         0 => [], // nothing left to find!
         1 => [
             // oo means both cells in other rows will be grass
-            // '(oo)' => [
-            //     'marker' => self::GRASS,
-            // ],
-            // // ooo means the middle cell in other rows will be grass
-            // 'o(o)o' => [
-            //     'marker' => self::GRASS,
-            // ],
-            // oxo means the middle cell in other rows will be grass
-            'o(x)o' => [
-                'marker' => self::GRASS,
-            ],
+            '(oo)' => self::GRASS,
+
+            // ooo means the middle cell in other rows will be grass
+            'o(o)o' => self::GRASS,
+
+            // alternating ox means the xs in other rows will be grass
+            'o(x)o' => self::GRASS,
         ],
         2 => [
-            //oxoxxo means the first x in other rows will be grass
-            'o(x)ox{2,}o' => [
-                'marker' => self::GRASS,
-            ],
-            //oooxo means the x in other rows will be grass
-            'ooo(x)o' => [
-                'marker' => self::GRASS,
-            ],
-            //oxxoo means the first o will be a tent
-            '(o)x{2,}oo' => [
-                'marker' => self::TENT,
-            ],
+            // oxoxxo means the first x in other rows will be grass
+            'o(x)ox{2,}o' => self::GRASS,
+
+            // oooxo means the x in other rows will be grass
+            'ooo(x)o' => self::GRASS,
+
+            // oxxoo means the first o will be a tent
+            '(o)x{2,}oo' => self::TENT,
+
             // ooxo means the second 0 will be a tent, and the first 2 in other rows will be grass
-            'oox(o)' => [
-                'marker' => self::TENT,
-            ],
-            '(oo)xo' => [
-                'marker' => self::GRASS,
-            ],
-            //ooxxxxoxo means the last x in other rows will be grass
-            'oox{1,}o(x)o' => [
-                'marker' => self::GRASS,
-            ]
+            'oox(o)' => self::TENT,
+            '(oo)xo' => self::GRASS,
+
+            // ooxxxxoxo means the last x in other rows will be grass
+            'oox{1,}o(x)o' => self::GRASS,
+
+            // alternating ox means the xs in other rows will be grass
+            'o(x)o(x)o' => self::GRASS,
         ],
         3 => [
-            //ooxooxo means the last o will be a tent
-            'ooxoox(o)' => [
-                'marker' => self::TENT,
-            ],
+            // ooxooxo means the last o will be a tent
+            'ooxoox(o)' => self::TENT,
+
+            // alternating ox means the xs in other rows will be grass
+            'o(x)o(x)o(x)o' => self::GRASS,
+
+            'oox{2,}(o)x(o)' => self::TENT,
         ],
         4 => [
-
+            // alternating ox means the xs in other rows will be grass
+            'o(x)o(x)o(x)o(x)o' => self::GRASS,
+        ],
+        5 => [
+            // alternating ox means the xs in other rows will be grass
+            'o(x)o(x)o(x)o(x)o(x)o' => self::GRASS,
         ],
     ];
 
@@ -174,6 +173,10 @@ class TentSolver {
             $changed = $this->fillRows() || $changed;
             $this->print();
 
+            e('markCornerGrass');
+            $changed = $this->markCornerGrass() || $changed;
+            $this->print();
+
             e('findLastTreesTents');
             $changed = $this->findLastTreesTents() || $changed;
             $this->print();
@@ -203,6 +206,8 @@ class TentSolver {
         } else {
             e('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
         }
+        e('num trees: ' . $this->treeCount);
+        e('num tents: ' . $this->tentCount);
         e('num loops: ' . $temp);
         e('changed: ' . ($changed ? 'yes' : 'no'));
         e('tent/tree counts match: ' . ($this->tentCount === $this->treeCount ? 'yes' : 'no'));
@@ -543,7 +548,7 @@ class TentSolver {
 
         e();
 
-        echo "\nTree->tent pairs\n";
+        echo "\nTree->tent pairs (".count($this->pairs).")\n";
         foreach($this->pairs as $tree => $tent) {
             e("$tree -> $tent");
         }
@@ -607,7 +612,7 @@ class TentSolver {
             $rowString = str_replace([self::TREE, self::GRASS, self::TENT], self::PATTERN_KNOWN, $rowString); // x
             $rowString = str_replace(self::UNKNOWN, self::PATTERN_UNKNOWN, $rowString); // o
 
-            foreach($this->patterns[$remainingTents] as $pattern => $details) {
+            foreach($this->patterns[$remainingTents] as $pattern => $type) {
                 // set up the reversed pattern too
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
@@ -646,13 +651,13 @@ class TentSolver {
                         $chars = str_split($match[$j][0]);
                         $x = $match[$j][1];
 
-                        if ($details['marker'] === self::GRASS) {
+                        if ($type === self::GRASS) {
                             // loop over every matched character in case we need to mark multiple grasses
                             for($c=0; $c<count($chars); $c++) {
-                                $changed = $this->mark($x+$c, $y-1, $details['marker']) || $changed;
-                                $changed = $this->mark($x+$c, $y+1, $details['marker']) || $changed;
+                                $changed = $this->mark($x+$c, $y-1, $type) || $changed;
+                                $changed = $this->mark($x+$c, $y+1, $type) || $changed;
                             }
-                        } else if ($details['marker'] === self::TENT) {
+                        } else if ($type === self::TENT) {
                             $changed = $this->markTent($x, $y) || $changed;
                         }
                     }
@@ -688,7 +693,7 @@ class TentSolver {
             $colString = str_replace([self::TREE, self::GRASS, self::TENT], self::PATTERN_KNOWN, $colString); // x
             $colString = str_replace(self::UNKNOWN, self::PATTERN_UNKNOWN, $colString); // o
 
-            foreach($this->patterns[$remainingTents] as $pattern => $details) {
+            foreach($this->patterns[$remainingTents] as $pattern => $type) {
                 // set up the reversed pattern too
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
@@ -727,13 +732,13 @@ class TentSolver {
                         $chars = str_split($match[$j][0]);
                         $y = $match[$j][1];
 
-                        if ($details['marker'] === self::GRASS) {
+                        if ($type === self::GRASS) {
                             // loop over every matched character in case we need to mark multiple grasses
                             for($c=0; $c<count($chars); $c++) {
-                                $changed = $this->mark($x-1, $y+$c, $details['marker']) || $changed;
-                                $changed = $this->mark($x+1, $y+$c, $details['marker']) || $changed;
+                                $changed = $this->mark($x-1, $y+$c, $type) || $changed;
+                                $changed = $this->mark($x+1, $y+$c, $type) || $changed;
                             }
-                        } else if ($details['marker'] === self::TENT) {
+                        } else if ($type === self::TENT) {
                             $changed = $this->markTent($x, $y) || $changed;
                         }
                     }
@@ -818,9 +823,36 @@ class TentSolver {
      * @todo: add this functionality if a Tree can only be in 2 kitty-corner spots,
      * then mark the space between those as grass
      */
-    function markCornerGrass(): void
+    function markCornerGrass(): bool
     {
+        $changed = false;
 
+        foreach($this->getAllCells(self::TREE) as $d) {
+            list($x, $y, $cell) = $d;
+
+            $otherCells = $this->getAdjacentCells($x, $y);
+
+            $counts = array_count_values(array_column($otherCells, 'cell'));
+
+            $above = $otherCells['above']['cell'];
+            $below = $otherCells['below']['cell'];
+            $left = $otherCells['left']['cell'];
+            $right = $otherCells['right']['cell'];
+
+            if (@$counts[self::UNKNOWN] === 2) {
+                if ($above === self::UNKNOWN && $left === self::UNKNOWN) {
+                    $changed = $this->mark($x-1, $y-1, self::GRASS) || $changed;
+                } else if ($above === self::UNKNOWN && $right === self::UNKNOWN) {
+                    $changed = $this->mark($x+1, $y-1, self::GRASS) || $changed;
+                } else if ($below === self::UNKNOWN && $left === self::UNKNOWN) {
+                    $changed = $this->mark($x-1, $y+1, self::GRASS) || $changed;
+                } else if ($below === self::UNKNOWN && $right === self::UNKNOWN) {
+                    $changed = $this->mark($x+1, $y+1, self::GRASS) || $changed;
+                }
+            }
+        }
+
+        return $changed;
     }
 }
 

@@ -181,3 +181,14 @@ Too many tents found (fixed!):
 1....x
 2.x......x
 2.....x
+
+Oct 8 a6
+ 13121312
+1
+3.xx.x.x
+1
+2.x...x
+1x...xx
+3..x
+1..x....x
+2..x.x
