@@ -88,6 +88,10 @@ class TentSolver {
             '(oo)xo' => [
                 'marker' => self::GRASS,
             ],
+            //ooxxxxoxo means the last x in other rows will be grass
+            'oox{1,}o(x)o' => [
+                'marker' => self::GRASS,
+            ]
         ],
         3 => [
             //ooxooxo means the last o will be a tent
