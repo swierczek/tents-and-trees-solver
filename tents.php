@@ -178,6 +178,10 @@ class TentSolver {
             $changed = $this->patternMatchRows() || $changed;
             $this->print();
 
+            e('patternMatchCols');
+            $changed = $this->patternMatchCols() || $changed;
+            $this->print();
+
             $changed = $this->pairTrees() || $changed;
             $changed = $this->pairTents() || $changed;
 
@@ -254,11 +258,6 @@ class TentSolver {
                     $changed = $this->mark($x, $i, self::GRASS) || $changed;
                 }
             } else if ($remainingColTents === $this->count($col, self::UNKNOWN)) {
-                echo '<pre>';
-                var_dump('filling all unknowns as tents');
-                var_dump($x);
-                echo '</pre>';
-                // die();
                 for($i=0; $i < $this->numRows; $i++) {
                     $changed = $this->markTent($x, $i) || $changed;
                 }
@@ -648,6 +647,87 @@ class TentSolver {
                             for($c=0; $c<count($chars); $c++) {
                                 $changed = $this->mark($x+$c, $y-1, $details['marker']) || $changed;
                                 $changed = $this->mark($x+$c, $y+1, $details['marker']) || $changed;
+                            }
+                        } else if ($details['marker'] === self::TENT) {
+                            $changed = $this->markTent($x, $y) || $changed;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Match various patterns and add grass/tents as applicable
+     */
+    function patternMatchCols(): bool
+    {
+        $changed = false;
+
+        for($x=0; $x<$this->numCols; $x++) {
+            $col = $this->getCol($x);
+
+            $remainingTents = $this->colCounts[$x] - $this->count($col, self::TENT);
+
+            if ($remainingTents < 0) {
+                e('ERROR TOO MANY TENTS in col ' . $x);
+                die;
+            }
+
+            // for regex matching purposes, we only care about empty vs non-empty
+            // so string replace everything that's not empty to a single value
+            // (this also keeps the regex looking simpler)
+            // e.g. " T ... ." should become "oxoxxxox"
+            $colString = implode('', $col);
+            $colString = str_replace([self::TREE, self::GRASS, self::TENT], self::PATTERN_KNOWN, $colString); // x
+            $colString = str_replace(self::UNKNOWN, self::PATTERN_UNKNOWN, $colString); // o
+
+            foreach($this->patterns[$remainingTents] as $pattern => $details) {
+                // set up the reversed pattern too
+                $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
+                if (!$matchedPattern) {
+                    e('REVERSE PATTERN NOT FOUND: '.$pattern);
+                    die;
+                }
+                $reversePattern = implode('', array_reverse($patternMatches[0]));
+
+                // match the pattern?
+                $regex = self::PATTERN_PREFIX . $pattern . self::PATTERN_SUFFIX;
+                $matched = preg_match($regex, $colString, $matches, PREG_OFFSET_CAPTURE);
+
+                $reverseRegex = self::PATTERN_PREFIX . $reversePattern . self::PATTERN_SUFFIX;
+                $reverseMatched = preg_match($reverseRegex, $colString, $reverseMatches, PREG_OFFSET_CAPTURE);
+
+                foreach([$matches, $reverseMatches] as $key => $match) {
+                    if (count($match) === 0) {
+                        continue;
+                    }
+
+                    if ($key == 0) {
+                        e('REGULAR PATTERN MATCHED');
+                        e('   col: ' . $x);
+                        e('   colString: ' . $colString);
+                        e('   pattern: ' . $pattern);
+                    } else {
+                        e('REVERSED PATTERN MATCHED');
+                        e('   col: ' . $x);
+                        e('   colString: ' . $colString);
+                        e('   reversePattern: ' . $reversePattern);
+                    }
+
+                    // $matches[x][1] is the byte offset in the string of the matched pattern (for a single pattern)
+
+                    for($j=1; $j<count($match); $j++) {
+                        $chars = str_split($match[$j][0]);
+                        $y = $match[$j][1];
+
+                        if ($details['marker'] === self::GRASS) {
+                            // loop over every matched character in case we need to mark multiple grasses
+                            for($c=0; $c<count($chars); $c++) {
+                                $changed = $this->mark($x-1, $y+$c, $details['marker']) || $changed;
+                                $changed = $this->mark($x+1, $y+$c, $details['marker']) || $changed;
                             }
                         } else if ($details['marker'] === self::TENT) {
                             $changed = $this->markTent($x, $y) || $changed;
