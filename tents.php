@@ -83,6 +83,9 @@ class TentSolver {
 
             // alternating ox means the xs in other rows will be grass
             'o(x)o(x)o' => self::GRASS,
+
+            // oooxoo means the middle o in other rows will be grass
+            'o(o)ox{1,}oo' => self::GRASS
         ],
         3 => [
             // ooxooxo means the last o will be a tent
@@ -96,6 +99,9 @@ class TentSolver {
 
             // oxoxoxoo means the first x in other rows will be grass
             'o(x)o(x)oxoo' => self::GRASS,
+
+            // oooxxo means every other o will be a tent
+            '(o)o(o)x{2,}(o)' => self::TENT,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
