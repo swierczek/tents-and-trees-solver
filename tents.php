@@ -178,6 +178,9 @@ class TentSolver {
             $changed = $this->patternMatchRows() || $changed;
             $this->print();
 
+            $changed = $this->pairTrees() || $changed;
+            $changed = $this->pairTents() || $changed;
+
             // $this->print();
             $this->validate();
         }
@@ -211,7 +214,12 @@ class TentSolver {
         foreach($this->getAllCells(self::UNKNOWN) as $d) {
             list($x, $y, $cell) = $d;
 
-            list($above, $below, $left, $right) = $this->getAdjacentCells($x, $y);
+            $otherCells = $this->getAdjacentCells($x, $y);
+
+            $above = $otherCells['above']['cell'];
+            $below = $otherCells['below']['cell'];
+            $left = $otherCells['left']['cell'];
+            $right = $otherCells['right']['cell'];
 
             if (
                 // exclude paired trees too
@@ -302,42 +310,20 @@ class TentSolver {
                 continue;
             }
 
-            list($above, $below, $left, $right) = $this->getAdjacentCells($x, $y);
+            $otherCells = $this->getAdjacentCells($x, $y, true);
 
-            $counts = array_count_values([$above, $below, $left, $right]);
+            $counts = array_count_values(array_column($otherCells, 'cell'));
 
-            // check 4 possible spots
-            $above = intval($above === self::UNKNOWN);
-            $below = intval($below === self::UNKNOWN);
-            $left = intval($left === self::UNKNOWN);
-            $right = intval($right === self::UNKNOWN);
-
-            // only one last spot to put it!
-            if (@$counts[self::UNKNOWN] === 1 && (@$counts[self::NOTHING] + @$counts[self::GRASS] + @$counts[self::TREE] === 4)) {
-                if ($above) {
-                    echo '<pre>';
-                    var_dump('above');
-                    echo '</pre>';
-                    die();
-                    $changed = $this->markTent($x, $y - 1) || $changed;
-                } else if ($below) {
-                    echo '<pre>';
-                    var_dump('below');
-                    echo '</pre>';
-                    die();
-                    $changed = $this->markTent($x, $y + 1) || $changed;
-                } else if ($left) {
-                    echo '<pre>';
-                    var_dump('left');
-                    echo '</pre>';
-                    die();
-                    $changed = $this->markTent($x - 1, $y) || $changed;
-                } else if ($right) {
-                    echo '<pre>';
-                    var_dump('right');
-                    echo '</pre>';
-                    die();
-                    $changed = $this->markTent($x + 1, $y) || $changed;
+            // if there's only one remaining unknown, it has to be a tent
+            if (
+                (@$counts[self::GRASS] + @$counts[self::NOTHING]) === 3
+                && @$counts[self::UNKNOWN] === 1
+            ) {
+                foreach($otherCells as $c) {
+                    if ($c['cell'] === self::UNKNOWN) {
+                        $changed = $this->markTent($c['x'], $c['y']) || $changed;
+                        break;
+                    }
                 }
             }
         }
@@ -382,22 +368,53 @@ class TentSolver {
 
     /**
      * Return the values of all 4 adjacent cells (above, below, left, right)
-     *
-     * Usage: list($above, $below, $left, $right) = $this->getAdjacentCells($x, $y);
      */
-    private function getAdjacentCells(int $x, int $y): array
+    private function getAdjacentCells(int $x, int $y, bool $considerPairsAsGrass = false): array
     {
+        $above = $this->getCell($x, $y-1, $considerPairsAsGrass);
+        $below = $this->getCell($x, $y+1, $considerPairsAsGrass);
+        $left = $this->getCell($x-1, $y, $considerPairsAsGrass);
+        $right = $this->getCell($x+1, $y, $considerPairsAsGrass);
+
         return [
-            $this->getCell($x, $y-1),
-            $this->getCell($x, $y+1),
-            $this->getCell($x-1, $y),
-            $this->getCell($x+1, $y),
+            'above' => [
+                'x' => $x,
+                'y' => $y-1,
+                'cell' => $above,
+            ],
+            'below' => [
+                'x' => $x,
+                'y' => $y+1,
+                'cell' => $below,
+            ],
+            'left' => [
+                'x' => $x-1,
+                'y' => $y,
+                'cell' => $left,
+            ],
+            'right' => [
+                'x' => $x+1,
+                'y' => $y,
+                'cell' => $right,
+            ],
         ];
     }
 
-    private function getCell(int $x, int $y): string
+    private function getCell(int $x, int $y, bool $considerPairsAsGrass = false): string
     {
-        return $this->map[$y][$x] ?? '';
+        $cell = $this->map[$y][$x] ?? '';
+
+        // if this cell is a tree or tent and it's paired, consider it the same as grass
+        if ($considerPairsAsGrass) {
+            if (
+                ($cell === self::TREE && $this->isPaired($x, $y))
+                || ($cell === self::TENT && $this->isPaired($x, $y, self::TENT))
+            ) {
+                $cell = self::GRASS;
+            }
+        }
+
+        return $cell;
     }
 
     /**
@@ -421,28 +438,6 @@ class TentSolver {
                     $this->map[$y+$j][$x+$i] = self::GRASS;
                     $changed = true;
                 }
-            }
-        }
-
-        list($above, $below, $left, $right) = $this->getAdjacentCells($x, $y);
-
-        // attempt to pair this tent to a tree, if only one tree is around this tent
-        // TODO: enhancement, if only 1 unpaired tree is around this tent...
-        $aboveIsTree = intval($above === self::TREE);
-        $belowIsTree = intval($below === self::TREE);
-        $leftIsTree  = intval($left === self::TREE);
-        $rightIsTree = intval($right === self::TREE);
-
-        // pair it!
-        if (($aboveIsTree + $belowIsTree + $leftIsTree + $rightIsTree) === 1) {
-            if ($aboveIsTree) {
-                $this->setPaired($x, $y-1, $x, $y);
-            } else if ($belowIsTree) {
-                $this->setPaired($x, $y+1, $x, $y);
-            } else if ($leftIsTree) {
-                $this->setPaired($x-1, $y, $x, $y);
-            } else if ($rightIsTree) {
-                $this->setPaired($x+1, $y, $x, $y);
             }
         }
 
@@ -492,9 +487,19 @@ class TentSolver {
         return intval(@array_count_values($data)[$item]);
     }
 
-    private function isPaired($x, $y): bool
+    /**
+     * Seach the paired trees/tents for this tree/tent
+     */
+    private function isPaired($x, $y, $type = self::TREE): bool
     {
-        return isset($this->pairs[$x.','.$y]);
+        $key = $x.','.$y;
+
+        if ($type === self::TREE) {
+            return isset($this->pairs[$key]);
+        } else if ($type === self::TENT) {
+            return array_search($key, $this->pairs) !== false;
+        }
+
     }
 
     private function setPaired($treeX, $treeY, $tentX, $tentY) {
@@ -656,11 +661,73 @@ class TentSolver {
     }
 
     /**
-     * @todo: add this functionality similar to findLastTreesTents
+     * Find all unpaired tents, and if they only have a single tree around them, pair it
      */
-    function claimTents(): void
+    function pairTents(): bool
     {
+        $changed = false;
 
+        foreach($this->getAllCells(self::TENT) as $d) {
+            list($x, $y, $cell) = $d;
+
+            if ($this->isPaired($x, $y, self::TENT)) {
+                continue;
+            }
+
+            $otherCells = $this->getAdjacentCells($x, $y, true);
+
+            $counts = array_count_values(array_column($otherCells, 'cell'));
+
+            // if there's only one tent around this and the others are grass, pair it to this tree
+            if (
+                (@$counts[self::TENT] + @$counts[self::GRASS] + @$counts[self::NOTHING]) === 3
+                && @$counts[self::TREE] === 1
+            ) {
+                foreach($otherCells as $c) {
+                    if ($c['cell'] === self::TREE) {
+                        $changed = $this->setPaired($c['x'], $c['y'], $x, $y) || $changed;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Find all unpaired trees, and if they only have a single tent around them, pair it
+     */
+    function pairTrees(): bool
+    {
+        $changed = false;
+
+        foreach($this->getAllCells(self::TREE) as $d) {
+            list($x, $y, $cell) = $d;
+
+            if ($this->isPaired($x, $y)) {
+                continue;
+            }
+
+            $otherCells = $this->getAdjacentCells($x, $y, true);
+
+            $counts = array_count_values(array_column($otherCells, 'cell'));
+
+            // if there's only one tent around this and the others are grass, pair it to this tree
+            if (
+                (@$counts[self::TREE] + @$counts[self::GRASS] + @$counts[self::NOTHING]) === 3
+                && @$counts[self::TENT] === 1
+            ) {
+                foreach($otherCells as $c) {
+                    if ($c['cell'] === self::TENT) {
+                        $changed = $this->setPaired($x, $y, $c['x'], $c['y']) || $changed;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $changed;
     }
 
     /**
