@@ -12,7 +12,7 @@ die();
     - Add a queue service to add newly changed cells to, so we only need to recheck those changed row/cols
 
     When iterating over $map, the first loop is $map = $y => $row, and the second loop is $row = $x => $cell
-    We access the coordinates directly like $map[y][x], but the function getters/setters us x,y for simplicity.
+    We access the coordinates directly like $map[y][x], but the function getters/setters use x,y for simplicity.
 
     $rowCounts = $y => $count
     $colCounts = $x => $count
@@ -32,6 +32,7 @@ class TentSolver {
     const INPUT_UNKNOWN2 = ' ';
 
     const PATTERN_UNKNOWN = 'o';
+    const PATTERN_UNKNOWN_INPUT = '-'; // use this to write the pattern regexes, but convert it when matching
     const PATTERN_KNOWN = 'x';
     const PATTERN_PREFIX = '/^[^o]*';
     const PATTERN_SUFFIX = '[^o]*$/';
@@ -49,6 +50,7 @@ class TentSolver {
 
     // used to split the patterns into separate tokens so we can reverse it
     // a single o or x with {} format, or a single o or x, or parenthesis with 1+ o or x
+    // (\(?[ox]{1}\{\d,?\}\)?)|([ox]{1})|(\([ox]+\)) to allow {2,} inside of parenthesis
     const PATTERN_REVERSE = '/([ox]{1}\{\d,?\})|([ox]{1})|(\([ox]+\))/';
 
     // o represents unknown spaces, x represents known spaces (but we don't care what their value is)
@@ -56,60 +58,60 @@ class TentSolver {
         0 => [], // nothing left to find!
         1 => [
             // oo means both cells in other rows will be grass
-            '(oo)' => self::GRASS,
+            '(--)' => self::GRASS,
 
             // ooo means the middle cell in other rows will be grass
-            'o(o)o' => self::GRASS,
+            '-(-)-' => self::GRASS,
 
             // alternating ox means the xs in other rows will be grass
-            'o(x)o' => self::GRASS,
+            '-(x)-' => self::GRASS,
         ],
         2 => [
             // oxoxxo means the first x in other rows will be grass
-            'o(x)ox{2,}o' => self::GRASS,
+            '-(x)-x{2,}-' => self::GRASS,
 
             // oooxo means the x in other rows will be grass
-            'ooo(x)o' => self::GRASS,
+            '---(x)-' => self::GRASS,
 
             // oxxoo means the first o will be a tent
-            '(o)x{2,}oo' => self::TENT,
+            '(-)x{2,}--' => self::TENT,
 
             // ooxo means the second 0 will be a tent, and the first 2 in other rows will be grass
-            'oox(o)' => self::TENT,
-            '(oo)xo' => self::GRASS,
+            '--x(-)' => self::TENT,
+            '(--)x-' => self::GRASS,
 
             // ooxxxxoxo means the last x in other rows will be grass
-            'oox{1,}o(x)o' => self::GRASS,
+            '--x{1,}-(x)-' => self::GRASS,
 
             // alternating ox means the xs in other rows will be grass
-            'o(x)o(x)o' => self::GRASS,
+            '-(x)-(x)-' => self::GRASS,
 
             // oooxoo means the middle o in other rows will be grass
-            'o(o)ox{1,}oo' => self::GRASS
+            '-(-)-x{1,}--' => self::GRASS
         ],
         3 => [
             // ooxooxo means the last o will be a tent
-            'ooxoox(o)' => self::TENT,
+            '--x--x(-)' => self::TENT,
 
             // alternating ox means the xs in other rows will be grass
-            'o(x)o(x)o(x)o' => self::GRASS,
+            '-(x)-(x)-(x)-' => self::GRASS,
 
             // ooxxxoxo means the last 2 os must be tents
-            'oox{2,}(o)x(o)' => self::TENT,
+            '--x{2,}(-)x(-)' => self::TENT,
 
             // oxoxoxoo means the first x in other rows will be grass
-            'o(x)o(x)oxoo' => self::GRASS,
+            '-(x)-(x)-x--' => self::GRASS,
 
             // oooxxo means every other o will be a tent
-            '(o)o(o)x{2,}(o)' => self::TENT,
+            '(-)-(-)x{2,}(-)' => self::TENT,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
-            'o(x)o(x)o(x)o(x)o' => self::GRASS,
+            '-(x)-(x)-(x)-(x)-' => self::GRASS,
         ],
         5 => [
             // alternating ox means the xs in other rows will be grass
-            'o(x)o(x)o(x)o(x)o(x)o' => self::GRASS,
+            '-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
         ],
     ];
 
@@ -624,6 +626,9 @@ class TentSolver {
 
             foreach($this->patterns[$remainingTents] as $pattern => $type) {
                 // set up the reversed pattern too
+                $pattern = str_replace(self::PATTERN_UNKNOWN_INPUT, self::PATTERN_UNKNOWN, $pattern);
+
+                // break the pattern into tokens so we can reverse the regex
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
                     e('REVERSE PATTERN NOT FOUND: '.$pattern);
@@ -705,6 +710,9 @@ class TentSolver {
 
             foreach($this->patterns[$remainingTents] as $pattern => $type) {
                 // set up the reversed pattern too
+                $pattern = str_replace(self::PATTERN_UNKNOWN_INPUT, self::PATTERN_UNKNOWN, $pattern);
+
+                // break the pattern into tokens so we can reverse the regex
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
                     e('REVERSE PATTERN NOT FOUND: '.$pattern);
