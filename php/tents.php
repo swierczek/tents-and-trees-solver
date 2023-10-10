@@ -37,6 +37,8 @@ class TentSolver {
     const PATTERN_PREFIX = '/^[^o]*';
     const PATTERN_SUFFIX = '[^o]*$/';
 
+    const COL_ROW_UNKNOWN = '?';
+
     private $map = []; // $map[$y][$x]
     private $rowCounts = [];
     private $colCounts = [];
@@ -104,6 +106,8 @@ class TentSolver {
 
             // oooxxo means every other o will be a tent
             '(-)-(-)x{2,}(-)' => self::TENT,
+
+            '(-)x{1,}--x{1,}--' => self::TENT,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
@@ -124,7 +128,7 @@ class TentSolver {
      * Load the input file into arrays
      */
     function setup() {
-        $filename = $argv[1] ?? 'tent-input.txt';
+        $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
 
         $input = file_get_contents($filename);
 
@@ -269,6 +273,11 @@ class TentSolver {
 
         // check each col
         foreach($this->colCounts as $x => $colCount) {
+            // if column tent count is unknown, skip it
+            if ($colCount === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $col = $this->getCol($x);
 
             $remainingColTents = $colCount - $this->count($col, self::TENT);
@@ -297,6 +306,11 @@ class TentSolver {
 
         // check each row
         foreach($this->rowCounts as $y => $rowCount) {
+            // if row tent count is unknown, skip it
+            if ($rowCount === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $row = $this->getRow($y);
 
             $remainingRowTents = $rowCount - $this->count($row, self::TENT);
@@ -336,7 +350,7 @@ class TentSolver {
 
             // if there's only one remaining unknown, it has to be a tent
             if (
-                (@$counts[self::GRASS] + @$counts[self::NOTHING]) === 3
+                (@$counts[self::TREE] + @$counts[self::GRASS] + @$counts[self::NOTHING]) === 3
                 && @$counts[self::UNKNOWN] === 1
             ) {
                 foreach($otherCells as $c) {
@@ -570,6 +584,11 @@ class TentSolver {
 
     private function validate() {
         for($i=0; $i<$this->numCols; $i++) {
+            // if column tent count is unknown, skip it
+            if ($this->colCounts[$i] === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $col = $this->getCol($i);
 
             // if the number of tents in this column is greater than the number expected
@@ -581,6 +600,11 @@ class TentSolver {
         }
 
         for($i=0; $i<$this->numRows; $i++) {
+            // if row tent count is unknown, skip it
+            if ($this->rowCounts[$i] === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $row = $this->getRow($i);
 
             // if the number of tents in this column is greater than the number expected
@@ -607,6 +631,11 @@ class TentSolver {
         $changed = false;
 
         for($y=0; $y<$this->numRows; $y++) {
+            // if column tent count is unknown, skip it
+            if ($this->rowCounts[$y] === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $row = $this->getRow($y);
 
             $remainingTents = $this->rowCounts[$y] - $this->count($row, self::TENT);
@@ -691,6 +720,11 @@ class TentSolver {
         $changed = false;
 
         for($x=0; $x<$this->numCols; $x++) {
+            // if column tent count is unknown, skip it
+            if ($this->colCounts[$x] === self::COL_ROW_UNKNOWN) {
+                continue;
+            }
+
             $col = $this->getCol($x);
 
             $remainingTents = $this->colCounts[$x] - $this->count($col, self::TENT);
