@@ -127,7 +127,7 @@ class TentSolver {
     /**
      * Load the input file into arrays
      */
-    function setup() {
+    private function setup() {
         $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
 
         $input = file_get_contents($filename);
@@ -167,7 +167,7 @@ class TentSolver {
     /**
      * Run the solver!
      */
-    function run() {
+    private function run() {
         $changed = true;
 
         $temp = 0;
@@ -235,7 +235,7 @@ class TentSolver {
     /**
      * @return bool whether or not any map values changed as a result of this function
      */
-    function fillGrass(): bool
+    private function fillGrass(): bool
     {
         $changed = false;
 
@@ -267,7 +267,7 @@ class TentSolver {
     /**
      * Check each column and, if possible, fill it with either remaining grass or remaining tents
      */
-    function fillCols(): bool
+    private function fillCols(): bool
     {
         $changed = false;
 
@@ -300,7 +300,7 @@ class TentSolver {
     /**
      * Check each row and, if possible, fill it with either remaining grass or remaining tents
      */
-    function fillRows(): bool
+    private function fillRows(): bool
     {
         $changed = false;
 
@@ -333,7 +333,7 @@ class TentSolver {
     /**
      * Go over every Tree, and if there's only one remaining space for a Tent, set it
      */
-    function findLastTreesTents(): bool
+    private function findLastTreesTents(): bool
     {
         $changed = false;
 
@@ -626,7 +626,7 @@ class TentSolver {
     /**
      * Match various patterns and add grass/tents as applicable
      */
-    function patternMatchRows(): bool
+    private function patternMatchRows(): bool
     {
         $changed = false;
 
@@ -715,7 +715,7 @@ class TentSolver {
     /**
      * Match various patterns and add grass/tents as applicable
      */
-    function patternMatchCols(): bool
+    private function patternMatchCols(): bool
     {
         $changed = false;
 
@@ -804,7 +804,7 @@ class TentSolver {
     /**
      * Find all unpaired tents, and if they only have a single tree around them, pair it
      */
-    function pairTents(): bool
+    private function pairTents(): bool
     {
         $changed = false;
 
@@ -839,7 +839,7 @@ class TentSolver {
     /**
      * Find all unpaired trees, and if they only have a single tent around them, pair it
      */
-    function pairTrees(): bool
+    private function pairTrees(): bool
     {
         $changed = false;
 
@@ -872,10 +872,9 @@ class TentSolver {
     }
 
     /**
-     * @todo: add this functionality if a Tree can only be in 2 kitty-corner spots,
-     * then mark the space between those as grass
+     * if a Tent can only be in 2 kitty-corner spots, then the space between those is grass
      */
-    function markCornerGrass(): bool
+    private function markCornerGrass(): bool
     {
         $changed = false;
 
