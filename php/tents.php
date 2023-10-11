@@ -16,9 +16,14 @@ foreach($inputs as $key => $val) {
     $inputs[$key] = implode("\n", $rows);
 }
 
+$outputSolution = false;
+
 foreach($inputs as $key => $input) {
+    // output the last solution
+    $outputSolution = $key === count($inputs) - 1;
+
     $solver = new TentSolver($input);
-    $result = $solver->solve();
+    $result = $solver->solve($outputSolution);
 
     // if any tests fail, rerun with debug to essentially step through the solution so far
     if (!$result) {
@@ -192,7 +197,7 @@ class TentSolver {
     /**
      * Run the solver!
      */
-    public function solve(): bool
+    public function solve(bool $outputSolution = false): bool
     {
         $changed = true;
 
@@ -271,7 +276,7 @@ class TentSolver {
         // $changed = $this->patternMatchRows() || $changed;
 
 
-        if ($this->debug) {
+        if ($this->debug || $outputSolution) {
             $this->print();
         }
 
@@ -639,9 +644,11 @@ class TentSolver {
 
         e();
 
-        echo "\nTree->tent pairs (".count($this->pairs).")\n";
-        foreach($this->pairs as $tree => $tent) {
-            e("$tree -> $tent");
+        if ($this->debug) {
+            echo "\nTree->tent pairs (".count($this->pairs).")\n";
+            foreach($this->pairs as $tree => $tent) {
+                e("$tree -> $tent");
+            }
         }
 
         e('-----------------------');
