@@ -1,8 +1,38 @@
 <?php
 
-$solver = new TentSolver();
+$filename = $argv[1] ?? getcwd() . '/../resources/tent-inputs-other.txt';
+// $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
 
-die();
+$inputs = explode("\n\n", file_get_contents($filename));
+
+foreach($inputs as $key => $val) {
+    $rows = explode("\n", $val);
+
+    // if the first row isn't the column numbers, remove it
+    if (!preg_match("/^ [\d?]+$/", $rows[0])) {
+        unset($rows[0]);
+    }
+
+    $inputs[$key] = implode("\n", $rows);
+}
+
+foreach($inputs as $key => $input) {
+    $solver = new TentSolver($input);
+    $result = $solver->solve();
+
+    // if any tests fail, rerun with debug to essentially step through the solution so far
+    if (!$result) {
+        e('Solution NOT found for puzzle ' . $key . '. Running again with debug enabled.');
+        $solver->setDebug(true);
+        $solver->solve();
+
+        die;
+    }
+}
+
+e('Solution found for all puzzles!');
+
+die;
 
 /*
     Future improvements:
@@ -29,7 +59,6 @@ class TentSolver {
     const NOTHING = '';
 
     const INPUT_UNKNOWN = '.';
-    const INPUT_UNKNOWN2 = ' ';
 
     const PATTERN_UNKNOWN = 'o';
     const PATTERN_UNKNOWN_INPUT = '-'; // use this to write the pattern regexes, but convert it when matching
@@ -47,6 +76,8 @@ class TentSolver {
     private $treeCount = 0;
     private $tentCount = 0;
 
+    private $debug = false;
+
     // $x,$y tree => $x,$y tent
     private $pairs = [];
 
@@ -59,16 +90,19 @@ class TentSolver {
     private $patterns = [
         0 => [], // nothing left to find!
         1 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-' => self::GRASS,
+
             // oo means both cells in other rows will be grass
             '(--)' => self::GRASS,
 
             // ooo means the middle cell in other rows will be grass
             '-(-)-' => self::GRASS,
-
-            // alternating ox means the xs in other rows will be grass
-            '-(x)-' => self::GRASS,
         ],
         2 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-' => self::GRASS,
+
             // oxoxxo means the first x in other rows will be grass
             '-(x)-x{2,}-' => self::GRASS,
 
@@ -85,18 +119,16 @@ class TentSolver {
             // ooxxxxoxo means the last x in other rows will be grass
             '--x{1,}-(x)-' => self::GRASS,
 
-            // alternating ox means the xs in other rows will be grass
-            '-(x)-(x)-' => self::GRASS,
-
             // oooxoo means the middle o in other rows will be grass
             '-(-)-x{1,}--' => self::GRASS
         ],
         3 => [
-            // ooxooxo means the last o will be a tent
-            '--x--x(-)' => self::TENT,
-
             // alternating ox means the xs in other rows will be grass
             '-(x)-(x)-(x)-' => self::GRASS,
+
+            // ooxooxo means the last o will be a tent
+            '--x--x(-)' => self::TENT,
+            '--x(-)x--' => self::TENT, // permutation of the previous
 
             // ooxxxoxo means the last 2 os must be tents
             '--x{2,}(-)x(-)' => self::TENT,
@@ -119,19 +151,7 @@ class TentSolver {
         ],
     ];
 
-    public function __construct() {
-        $this->setup();
-        $this->run();
-    }
-
-    /**
-     * Load the input file into arrays
-     */
-    private function setup() {
-        $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
-
-        $input = file_get_contents($filename);
-
+    public function __construct(string $input) {
         $lines = array_map('trim', explode("\n", $input));
 
         foreach($lines as $row => $l) {
@@ -141,7 +161,7 @@ class TentSolver {
                 continue;
             }
 
-            // if the input is just ..x but there are more empty spaces, pad it
+            // if the input is just ..x but there are more empty spaces to the right, pad it
             $l = str_pad($l, $this->numCols+1, self::INPUT_UNKNOWN);
 
             // see note about laziness at the top of the class file
@@ -149,7 +169,7 @@ class TentSolver {
             foreach(str_split($l) as $y => $cell) {
                 if ($y === 0) {
                     $this->rowCounts[] = $cell;
-                } else if ($cell === self::INPUT_UNKNOWN || $cell === self::INPUT_UNKNOWN2) {
+                } else if ($cell === self::INPUT_UNKNOWN) {
                     $split[] = self::UNKNOWN;
                 } else {
                     $split[] = self::TREE;
@@ -164,10 +184,16 @@ class TentSolver {
         $this->numRows = count($this->rowCounts);
     }
 
+    public function setDebug(bool $debug): void
+    {
+        $this->debug = $debug;
+    }
+
     /**
      * Run the solver!
      */
-    private function run() {
+    public function solve(): bool
+    {
         $changed = true;
 
         $temp = 0;
@@ -175,35 +201,65 @@ class TentSolver {
             $changed = false;
             $temp++;
 
-            // e('loop ' . $temp);
+            if ($this->debug) {
+                e('loop ' . $temp);
+            }
 
-            e('fillGrass');
+            if ($this->debug) {
+                e('fillGrass');
+            }
             $changed = $this->fillGrass() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('fillCols');
+            if ($this->debug) {
+                e('fillCols');
+            }
             $changed = $this->fillCols() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('fillRows');
+            if ($this->debug) {
+                e('fillRows');
+            }
             $changed = $this->fillRows() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('markCornerGrass');
+            if ($this->debug) {
+                e('markCornerGrass');
+            }
             $changed = $this->markCornerGrass() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('findLastTreesTents');
+            if ($this->debug) {
+                e('findLastTreesTents');
+            }
             $changed = $this->findLastTreesTents() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('patternMatchRows');
+            if ($this->debug) {
+                e('patternMatchRows');
+            }
             $changed = $this->patternMatchRows() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
-            e('patternMatchCols');
+            if ($this->debug) {
+                e('patternMatchCols');
+            }
             $changed = $this->patternMatchCols() || $changed;
-            $this->print();
+            if ($this->debug) {
+                $this->print();
+            }
 
             $changed = $this->pairTrees() || $changed;
             $changed = $this->pairTents() || $changed;
@@ -215,21 +271,30 @@ class TentSolver {
         // $changed = $this->patternMatchRows() || $changed;
 
 
-        $this->print();
+        if ($this->debug) {
+            $this->print();
+        }
 
         if ($changed && $this->tentCount === $this->treeCount) {
-            e('SOLVED SOLVED SOLVED!!!');
+            if ($this->debug) {
+                e('SOLVED SOLVED SOLVED!!!');
+            }
+            return true;
         } else {
-            e('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
+            if ($this->debug) {
+                e('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
+            }
         }
-        e('num trees: ' . $this->treeCount);
-        e('num tents: ' . $this->tentCount);
-        e('num loops: ' . $temp);
-        e('changed: ' . ($changed ? 'yes' : 'no'));
-        e('tent/tree counts match: ' . ($this->tentCount === $this->treeCount ? 'yes' : 'no'));
-        die();
 
-        die();
+        if ($this->debug) {
+            e('num trees: ' . $this->treeCount);
+            e('num tents: ' . $this->tentCount);
+            e('num loops: ' . $temp);
+            e('changed: ' . ($changed ? 'yes' : 'no'));
+            e('tent/tree counts match: ' . ($this->tentCount === $this->treeCount ? 'yes' : 'no'));
+        }
+
+        return false;
     }
 
     /**
@@ -677,16 +742,18 @@ class TentSolver {
                         continue;
                     }
 
-                    if ($key == 0) {
-                        e('REGULAR PATTERN MATCHED');
-                        e('   row: ' . $y);
-                        e('   rowString: ' . $rowString);
-                        e('   pattern: ' . $pattern);
-                    } else {
-                        e('REVERSED PATTERN MATCHED');
-                        e('   row: ' . $y);
-                        e('   rowString: ' . $rowString);
-                        e('   reversePattern: ' . $reversePattern);
+                    if ($this->debug) {
+                        if ($key == 0) {
+                            e('REGULAR PATTERN MATCHED');
+                            e('   row: ' . $y);
+                            e('   rowString: ' . $rowString);
+                            e('   pattern: ' . $pattern);
+                        } else {
+                            e('REVERSED PATTERN MATCHED');
+                            e('   row: ' . $y);
+                            e('   rowString: ' . $rowString);
+                            e('   reversePattern: ' . $reversePattern);
+                        }
                     }
 
                     // $matches[x][1] is the byte offset in the string of the matched pattern (for a single pattern)
@@ -766,16 +833,18 @@ class TentSolver {
                         continue;
                     }
 
-                    if ($key == 0) {
-                        e('REGULAR PATTERN MATCHED');
-                        e('   col: ' . $x);
-                        e('   colString: ' . $colString);
-                        e('   pattern: ' . $pattern);
-                    } else {
-                        e('REVERSED PATTERN MATCHED');
-                        e('   col: ' . $x);
-                        e('   colString: ' . $colString);
-                        e('   reversePattern: ' . $reversePattern);
+                    if ($this->debug) {
+                        if ($key == 0) {
+                            e('REGULAR PATTERN MATCHED');
+                            e('   col: ' . $x);
+                            e('   colString: ' . $colString);
+                            e('   pattern: ' . $pattern);
+                        } else {
+                            e('REVERSED PATTERN MATCHED');
+                            e('   col: ' . $x);
+                            e('   colString: ' . $colString);
+                            e('   reversePattern: ' . $reversePattern);
+                        }
                     }
 
                     // $matches[x][1] is the byte offset in the string of the matched pattern (for a single pattern)
