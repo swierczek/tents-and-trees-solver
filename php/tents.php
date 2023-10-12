@@ -22,8 +22,12 @@ foreach($inputs as $key => $input) {
     // output the last solution
     $outputSolution = $key === count($inputs) - 1;
 
+    $start = microtime(true);
+
     $solver = new TentSolver($input);
     $result = $solver->solve($outputSolution);
+
+    $duration = microtime(true) - $start;
 
     // if any tests fail, rerun with debug to essentially step through the solution so far
     if (!$result) {
@@ -33,6 +37,8 @@ foreach($inputs as $key => $input) {
 
         die;
     }
+
+    e('Solution found for puzzle ' . $key . ' in ' . $result . ' loops and ' . round(($duration * 1000), 1) . ' ms');
 }
 
 e('Solution found for all puzzles!');
@@ -197,17 +203,17 @@ class TentSolver {
     /**
      * Run the solver!
      */
-    public function solve(bool $outputSolution = false): bool
+    public function solve(bool $outputSolution = false): int|bool
     {
         $changed = true;
 
-        $temp = 0;
-        while ($changed && $this->tentCount !== $this->treeCount && $temp < 8) {
+        $loop = 0;
+        while ($changed && $this->tentCount !== $this->treeCount && $loop < 8) {
             $changed = false;
-            $temp++;
+            $loop++;
 
             if ($this->debug) {
-                e('loop ' . $temp);
+                e('loop ' . $loop);
             }
 
             if ($this->debug) {
@@ -284,7 +290,7 @@ class TentSolver {
             if ($this->debug) {
                 e('SOLVED SOLVED SOLVED!!!');
             }
-            return true;
+            return $loop;
         } else {
             if ($this->debug) {
                 e('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
