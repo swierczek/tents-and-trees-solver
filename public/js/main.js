@@ -119,7 +119,7 @@ function removeTop(src) {
  * @param src full color image
  * @return binary black/white image
  */
-function blackAndWhite(src, threshold) {
+function blackAndWhite(src, threshold, blackBg = true) {
     let bw = new cv.Mat();
 
     // grayscale it for easier detection
@@ -127,7 +127,8 @@ function blackAndWhite(src, threshold) {
 
     // https://docs.opencv.org/3.4/d7/dd0/tutorial_js_thresholding.html
     // https://docs.opencv.org/3.4/d7/d1b/group__imgproc__misc.html#gae8a4a146d1ca78c626a53577199e9c57
-    cv.threshold(bw, bw, threshold, 255, cv.THRESH_BINARY);
+    let mode = blackBg ? cv.THRESH_BINARY : cv.THRESH_BINARY_INV;
+    cv.threshold(bw, bw, threshold, 255, mode);
 
     return bw
 }
@@ -182,15 +183,18 @@ function detectGrid(src) {
         let cell = src.roi(innerRect);
         cell = blackAndWhite(cell, 120);
 
+        // don't need to check every pixel...
         let avgColor = 0;
-        for (let x = 0; x < cell.size().width; x++) {
-            for (let y = 0; y < cell.size().height; y++) {
+        let count = 0;
+        for (let x = 0; x < cell.size().width; x+=5) {
+            for (let y = 0; y < cell.size().height; y+=3) {
                 avgColor += cell.ucharPtr(x, y)
+                count++;
             }
         }
 
-        avgColor = avgColor / (cell.rows * cell.cols);
-        if (avgColor > 100) {
+        avgColor = avgColor / count;
+        if (avgColor > 40) {
             row.push('x');
         } else {
             row.push('.');
@@ -225,6 +229,33 @@ function detectGrid(src) {
     // let point3 = new cv.Point(0, gridTop);
     // let point4 = new cv.Point(gridLeft, src.size().height);
     // cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+
+    // check the number cell
+    let numRect = new cv.Rect(
+        src.size().width - size,
+        0,
+        size,
+        gridTop - padding
+    );
+
+    let numRow = [];
+
+    // TODO: why padding? off by 1?
+    while (numRect.x > gridLeft-padding) {
+        let cell = src.roi(numRect);
+        // 80 works well for non-0, but 0 might be too dark.
+        // so we might want to check if this is all black, and if so run again with smaller number
+        // for OCR we want white bg
+        cell = blackAndWhite(cell, 50, false);
+
+        // TODO: tesseract to detect the number!
+        numRow.push(findText(cell));
+
+        // move left
+        numRect.x -= size;
+
+        return cell;
+    }
 
     return src;
 }
@@ -292,6 +323,30 @@ function findCellWidth(src) {
     bw.delete();
 
     return width;
+}
+
+function findText(src) {
+    cv.imshow('canvasTemp', src);
+
+    // console.log(src);
+    // detect 0-9
+    let char = Tesseract.recognize(document.getElementById('canvasTemp'))
+        .then(function(result){
+        // The result object of a text recognition contains detailed data about all the text
+        // recognized in the image, words are grouped by arrays etc
+        console.log(result);
+
+        // Show recognized text in the browser !
+        // alert(result.data.text);
+        return result.data.text;
+    // }).finally(function(){
+        // Enable button once the text recognition finishes (either if fails or not)
+        // btn.disable = false;
+    });
+
+    console.log(char);
+
+    return '?';
 }
 
 // blur to help with edge detection and combat image compression?
