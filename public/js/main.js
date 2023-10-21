@@ -17,7 +17,7 @@ var onOpenCvReady = function() {
     let src = cv.imread(imgElement);
     // let dst = new cv.Mat();
 
-    // imageMetadata(src);
+    imageMetadata(src);
 
     src = cropGrid(src);
 
@@ -51,6 +51,8 @@ function cropGrid(src) {
     // start both in the middle and work up/down from there
     let topCrop = bw.size().height / 2;
     let bottomCrop = bw.size().height / 2;
+    let leftCrop = bw.size().width / 2;
+    let rightCrop = bw.size().width / 2;
 
     // https://docs.opencv.org/3.4/d5/daa/tutorial_js_contours_begin.html
     let edges = cv.Mat.zeros(bw.rows, bw.cols, cv.CV_8UC3);
@@ -63,19 +65,28 @@ function cropGrid(src) {
     for (let i = 0; i < contours.size(); ++i) {
         let rect = cv.boundingRect(contours.get(i));
 
-        if (rect.y > bottomCrop) {
-            bottomCrop = rect.y;
+        if (rect.y + rect.height > bottomCrop) {
+            bottomCrop = rect.y + rect.height;
         }
         if (rect.y < topCrop) {
             topCrop = rect.y;
         }
+
+        if (rect.x + rect.width > rightCrop) {
+            rightCrop = rect.x + rect.width;
+        }
+        if (rect.x < leftCrop) {
+            leftCrop = rect.x;
+        }
     }
 
+    let padding = 2;
+
     let rect = new cv.Rect(
-        0,
-        topCrop - 3,
-        bw.size().width,
-        bottomCrop - topCrop + 12
+        leftCrop - padding,
+        topCrop - padding,
+        rightCrop - leftCrop + padding,
+        bottomCrop - topCrop + padding
     );
 
     contours.delete();
