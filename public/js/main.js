@@ -17,7 +17,7 @@ var onOpenCvReady = function() {
     let src = cv.imread(imgElement);
     // let dst = new cv.Mat();
 
-    imageMetadata(src);
+    // imageMetadata(src);
 
     src = cropGrid(src);
 
@@ -139,8 +139,9 @@ function blackAndWhite(src, threshold) {
  */
 function detectGrid(src) {
     // this is made but based on a single image test... there's a better way to do this
-    let padding = 5;
+    let padding = 4;
     let size = findCellWidth(src) + padding;
+    let inner = Math.floor(size * .67);
 
     // draw rectangle starting in the bottom right corner
     // https://docs.opencv.org/3.4/dc/dcf/tutorial_js_contour_features.html
@@ -152,27 +153,78 @@ function detectGrid(src) {
         size
     );
 
-    let row = '';
+    let rows = [];
+    let row = [];
+
+    // keep track of these to detect where the numbers will be
+    let gridTop = src.size().height;
+    let gridLeft = src.size().width;
+
+    imageMetadata(src);
 
     // draw the full grid
     while (rect.x > 0 && rect.y > 0) {
         let point1 = new cv.Point(rect.x, rect.y);
         let point2 = new cv.Point(rect.x + rect.width, rect.y + rect.height);
-        cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
 
-        let cell = src.roi(rect);
+        let point3 = new cv.Point(point1.x + inner, point1.y + inner);
+        let point4 = new cv.Point(point2.x - inner, point2.y - inner);
+        cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
 
+        let innerRect = new cv.Rect(
+            point4.x,
+            point4.y,
+            point3.x - point4.x,
+            point3.y - point4.y
+        );
+
+        let cell = src.roi(innerRect);
         cell = blackAndWhite(cell, 120);
+
+        let avgColor = 0;
+        for (let x = 0; x < cell.size().width; x++) {
+            for (let y = 0; y < cell.size().height; y++) {
+                avgColor += cell.ucharPtr(x, y)
+            }
+        }
+
+        avgColor = avgColor / (cell.rows * cell.cols);
+        if (avgColor > 100) {
+            row.push('x');
+        } else {
+            row.push('.');
+        }
 
         // move left
         rect.x -= size;
 
+        if (rect.x > 0) {
+            gridLeft = rect.x;
+        }
+        if (rect.y > 0) {
+            gridTop = rect.y;
+        }
+
         if (rect.x < 0) {
-            console.log('row', row.reverse());
+            rows.push(row.reverse().join(''));
+            row = [];
+            // console.log('row', row.reverse().join(''));
             rect.x = src.size().width - size;
             rect.y -= size;
         }
     }
+
+    console.log(rows.reverse());
+
+    // now draw the box around the numbers
+    // let point1 = new cv.Point(gridLeft, 0);
+    // let point2 = new cv.Point(src.size().width, gridTop);
+    // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
+    // let point3 = new cv.Point(0, gridTop);
+    // let point4 = new cv.Point(gridLeft, src.size().height);
+    // cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
 
     return src;
 }
