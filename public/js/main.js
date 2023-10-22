@@ -11,7 +11,18 @@ let imgElement = document.getElementById('imageSrc');
 //     mat.delete();
 // };
 
-const cols = [];
+let cols = [];
+let rows = [];
+let grid = [];
+
+let colTextFoundCount = 0;
+let rowTextFoundCount = 0;
+
+let colsLength = 0;
+let rowsLength = 0;
+
+let colsEventTriggered = false;
+let rowsEventTriggered = false;
 
 var onOpenCvReady = function() {
     document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
@@ -221,7 +232,9 @@ function detectGrid(src) {
         }
     }
 
-    console.log(rows.reverse());
+    grid = rows.reverse();
+
+    console.log(grid);
 
     // now draw the box around the numbers
     // let point1 = new cv.Point(gridLeft, 0);
@@ -234,19 +247,23 @@ function detectGrid(src) {
 
     // check the number cell
     let numRect = new cv.Rect(
-        src.size().width - size,
+        gridLeft,
         0,
         size,
         gridTop - padding
     );
 
     let numRow = [];
-    let colNum = 0;
 
-    // TODO: why padding? off by 1?
-    while (numRect.x > gridLeft-padding) {
-        let point1 = new cv.Point(numRect.x, numRect.y);
-        let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
+    colsLength = Math.ceil((src.size().width - gridLeft) / size);
+    rowsLength = Math.ceil((src.size().height - gridTop) / size);
+
+    console.log('colsLength', colsLength);
+    console.log('rowsLength', rowsLength);
+
+    for (let x = 0; x < colsLength; x++) {
+        // let point1 = new cv.Point(numRect.x, numRect.y);
+        // let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
         // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
 
         let cell = src.roi(numRect);
@@ -256,14 +273,12 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         // tesseract it!
-        let result = findText(cell, 'col-' + colNum, colNum);
+        let result = findText(cell, 'col-' + x, x);
         console.log(result);
-        // numRow.push(findText(cell, 'col-' + (numRow.length+1) ));
         numRow[result.num] = result.text;
 
-        // move left
-        numRect.x -= size;
-        colNum++;
+        // move right
+        numRect.x += size;
 
         // return cell;
     }
@@ -271,19 +286,22 @@ function detectGrid(src) {
     // check the number cell
     numRect = new cv.Rect(
         0,
-        src.size().height - size,
+        gridTop,
         gridLeft - padding,
         size
     );
 
-    let numCol = [];
-    let rowNum = 0;
-
-    // TODO: why padding? off by 1?
-    while (numRect.y > gridTop-padding) {
-        let point1 = new cv.Point(numRect.x, numRect.y);
-        let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
+    for (let y = 0; y < rowsLength; y++) {
+        // let point1 = new cv.Point(numRect.x, numRect.y);
+        // let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
         // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
+        if ((numRect.y + size) > src.size().height) {
+            numRect.y = src.size().height - size;
+        }
+
+        console.log(src.size());
+        console.log(numRect);
 
         let cell = src.roi(numRect);
         // // 80 works well for non-0, but 0 might be too dark.
@@ -292,14 +310,13 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         // tesseract it!
-        let result = findText(cell, 'row-' + rowNum, rowNum);
+        let result = findText(cell, 'row-' + y, y, false);
         console.log(result);
         // numRow.push(findText(cell, 'col-' + (numRow.length+1) ));
         numRow[result.num] = result.text;
 
         // move up
-        numRect.y -= size;
-        rowNum++;
+        numRect.y += size;
 
         // return cell;
     }
@@ -374,7 +391,7 @@ function findCellWidth(src) {
     return width;
 }
 
-async function findText(src, id, num) {
+async function findText(src, id, num, colVar = true) {
     // cv.imshow('canvasTemp', src);
     let canvas = document.createElement('canvas');
     canvas.setAttribute('id', id);
@@ -383,26 +400,76 @@ async function findText(src, id, num) {
 
     cv.imshow(id, src);
 
-    // detect 0-9
-    let char = await Tesseract.recognize(document.getElementById(id))
-        .then(function(result) {
-            // The result object of a text recognition contains detailed data about all the text
-            // recognized in the image, words are grouped by arrays etc
-            // console.log(id, result);
-
-            // Show recognized text in the browser
-            cols[num] = parseInt(result.data.text);
-            // cols[num] = result.data.text;
-            // return {
-            //     id: id,
-            //     num: num,
-            //     text: result.data.text
-            // };
-            console.log(cols);
-            return result.data.text;
+    const { createWorker } = Tesseract;
+    (async () => {
+        const worker = await createWorker('eng');
+        await worker.setParameters({
+            tessedit_char_whitelist: '0123456789',
+            // tessedit_pageseg_mode: 8 // PSM_SINGLE_WORD?
         });
+        let char = await worker.recognize(document.getElementById(id))
+            .then(function(result) {
+                // The result object of a text recognition contains detailed data about all the text
+                // recognized in the image, words are grouped by arrays etc
+                // console.log(id, result);
 
-    console.log(char);
+                // Show recognized text in the browser somehow
+                if (colVar) {
+                    cols[num] = parseInt(result.data.text);
+                    colTextFoundCount++;
+                    console.log('cols', cols);
+
+                    if (colTextFoundCount === colsLength) {
+                        // Create the event
+                        var event = new CustomEvent("col-nums-determined", { "detail": cols.join('') });
+
+                        // Dispatch/Trigger/Fire the event
+                        document.dispatchEvent(event);
+                    }
+                } else {
+                    rows[num] = parseInt(result.data.text);
+                    rowTextFoundCount++;
+                    console.log('rows', rows);
+
+                    if (rowTextFoundCount === rowsLength) {
+                        // Create the event
+                        var event = new CustomEvent("row-nums-determined", { "detail": rows.join('') });
+
+                        // Dispatch/Trigger/Fire the event
+                        document.dispatchEvent(event);
+                    }
+                }
+                // cols[num] = result.data.text;
+                // return {
+                //     id: id,
+                //     num: num,
+                //     text: result.data.text
+                // };
+                return result.data.text;
+            });
+        // console.log(text);
+    })();
+
+    // detect 0-9
+    // let char = await Tesseract.recognize(document.getElementById(id))
+    //     .then(function(result) {
+    //         // The result object of a text recognition contains detailed data about all the text
+    //         // recognized in the image, words are grouped by arrays etc
+    //         // console.log(id, result);
+
+    //         // Show recognized text in the browser
+    //         cols[num] = parseInt(result.data.text);
+    //         // cols[num] = result.data.text;
+    //         // return {
+    //         //     id: id,
+    //         //     num: num,
+    //         //     text: result.data.text
+    //         // };
+    //         console.log(cols);
+    //         return result.data.text;
+    //     });
+
+    // console.log(char);
 
     return '?';
 }
@@ -414,3 +481,36 @@ async function findText(src, id, num) {
 // maybe also use erosion + dilation = opening to remove noise (only with a binary image)?
 
 // pyramids to find/match an object in the image? Not sure if that's useful yet or not
+
+// Add an event listener
+document.addEventListener("col-nums-determined", function(e) {
+    console.log('event listener', e.detail); // Prints "Example of an event"
+
+    colsEventTriggered = true;
+    if (colsEventTriggered && rowsEventTriggered) {
+        printInput();
+    }
+});
+
+document.addEventListener("row-nums-determined", function(e) {
+    console.log('event listener', e.detail); // Prints "Example of an event"
+
+    rowsEventTriggered = true;
+    if (colsEventTriggered && rowsEventTriggered) {
+        printInput();
+    }
+});
+
+function printInput() {
+    let textarea = document.createElement('textarea');
+    textarea.setAttribute('rows', rowsLength);
+
+    let input = ' ' + cols.join('') + "\r\n";
+    for (y=0; y < colsLength; y++) {
+        console.log(grid);
+        input += rows[y] + grid[y] + "\r\n";
+    }
+    textarea.value = input;
+
+    document.querySelector('body').prepend(textarea);
+}
