@@ -11,6 +11,8 @@ let imgElement = document.getElementById('imageSrc');
 //     mat.delete();
 // };
 
+const cols = [];
+
 var onOpenCvReady = function() {
     document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
 
@@ -239,23 +241,70 @@ function detectGrid(src) {
     );
 
     let numRow = [];
+    let colNum = 0;
 
     // TODO: why padding? off by 1?
     while (numRect.x > gridLeft-padding) {
+        let point1 = new cv.Point(numRect.x, numRect.y);
+        let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
+        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
         let cell = src.roi(numRect);
         // 80 works well for non-0, but 0 might be too dark.
         // so we might want to check if this is all black, and if so run again with smaller number
         // for OCR we want white bg
         cell = blackAndWhite(cell, 50, false);
 
-        // TODO: tesseract to detect the number!
-        numRow.push(findText(cell));
+        // tesseract it!
+        let result = findText(cell, 'col-' + colNum, colNum);
+        console.log(result);
+        // numRow.push(findText(cell, 'col-' + (numRow.length+1) ));
+        numRow[result.num] = result.text;
 
         // move left
         numRect.x -= size;
+        colNum++;
 
-        return cell;
+        // return cell;
     }
+
+    // check the number cell
+    numRect = new cv.Rect(
+        0,
+        src.size().height - size,
+        gridLeft - padding,
+        size
+    );
+
+    let numCol = [];
+    let rowNum = 0;
+
+    // TODO: why padding? off by 1?
+    while (numRect.y > gridTop-padding) {
+        let point1 = new cv.Point(numRect.x, numRect.y);
+        let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
+        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
+        let cell = src.roi(numRect);
+        // // 80 works well for non-0, but 0 might be too dark.
+        // // so we might want to check if this is all black, and if so run again with smaller number
+        // // for OCR we want white bg
+        cell = blackAndWhite(cell, 50, false);
+
+        // tesseract it!
+        let result = findText(cell, 'row-' + rowNum, rowNum);
+        console.log(result);
+        // numRow.push(findText(cell, 'col-' + (numRow.length+1) ));
+        numRow[result.num] = result.text;
+
+        // move up
+        numRect.y -= size;
+        rowNum++;
+
+        // return cell;
+    }
+
+    console.log(numRow);
 
     return src;
 }
@@ -325,24 +374,33 @@ function findCellWidth(src) {
     return width;
 }
 
-function findText(src) {
-    cv.imshow('canvasTemp', src);
+async function findText(src, id, num) {
+    // cv.imshow('canvasTemp', src);
+    let canvas = document.createElement('canvas');
+    canvas.setAttribute('id', id);
 
-    // console.log(src);
+    document.querySelector('body').append(canvas);
+
+    cv.imshow(id, src);
+
     // detect 0-9
-    let char = Tesseract.recognize(document.getElementById('canvasTemp'))
-        .then(function(result){
-        // The result object of a text recognition contains detailed data about all the text
-        // recognized in the image, words are grouped by arrays etc
-        console.log(result);
+    let char = await Tesseract.recognize(document.getElementById(id))
+        .then(function(result) {
+            // The result object of a text recognition contains detailed data about all the text
+            // recognized in the image, words are grouped by arrays etc
+            // console.log(id, result);
 
-        // Show recognized text in the browser !
-        // alert(result.data.text);
-        return result.data.text;
-    // }).finally(function(){
-        // Enable button once the text recognition finishes (either if fails or not)
-        // btn.disable = false;
-    });
+            // Show recognized text in the browser
+            cols[num] = parseInt(result.data.text);
+            // cols[num] = result.data.text;
+            // return {
+            //     id: id,
+            //     num: num,
+            //     text: result.data.text
+            // };
+            console.log(cols);
+            return result.data.text;
+        });
 
     console.log(char);
 
