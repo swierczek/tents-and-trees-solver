@@ -146,7 +146,7 @@ function detectGrid(src) {
 
     // 4 is good for 9 cols (size=43), 8 is good for 7 cols (size=52).
     // 12% seems to match 2 images so far...
-    let padding = Math.ceil(cellSize * .12);
+    let padding = Math.ceil(cellSize * .11);
     let size = cellSize + padding;
 
     let inner = Math.floor(size * .67);
@@ -154,6 +154,7 @@ function detectGrid(src) {
     // draw rectangle starting in the bottom right corner
     // https://docs.opencv.org/3.4/dc/dcf/tutorial_js_contour_features.html
     // let rectangleColor = new cv.Scalar(255, 0, 0, 255);
+    let rectangleColor = new cv.Scalar(255, 255, 255, 255);
     let rect = new cv.Rect(
         src.size().height - size,
         src.size().width - size,
@@ -178,7 +179,7 @@ function detectGrid(src) {
         // full cell
         let point1 = new cv.Point(rect.x, rect.y);
         let point2 = new cv.Point(rect.x + rect.width, rect.y + rect.height);
-        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+        cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
 
         // middle 2/3 to account for drift or carryover treetops
         let point3 = new cv.Point(point1.x + inner, point1.y + inner);
