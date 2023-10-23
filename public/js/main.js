@@ -141,9 +141,14 @@ function blackAndWhite(src, threshold, blackBg = true) {
  * @param src full color image
  */
 function detectGrid(src) {
-    // this is made but based on a single image test... there's a better way to do this
-    let padding = 4;
-    let size = findCellWidth(src) + padding;
+    // this is made up based on a single image test... there's a better way to do this
+    let cellSize = findCellWidth(src);
+
+    // 4 is good for 9 cols (size=43), 8 is good for 7 cols (size=52).
+    // 12% seems to match 2 images so far...
+    let padding = Math.ceil(cellSize * .12);
+    let size = cellSize + padding;
+
     let inner = Math.floor(size * .67);
 
     // draw rectangle starting in the bottom right corner
@@ -227,6 +232,9 @@ function detectGrid(src) {
     grid = rows.reverse();
 
     console.log(grid);
+
+    // uncomment this to just output grid stuff, nothing OCR related
+    // return src;
 
     // now draw the box around the numbers
     // let point1 = new cv.Point(gridLeft, 0);
@@ -422,10 +430,15 @@ async function findText(src, id) {
     // return the promise
     return await worker.recognize(document.getElementById(id))
         .then(function(result) {
-            // TODO: if it's empty, return '?'
+            // if it's empty, return '?'
+            let number = parseInt(result.data.text);
+            if (isNaN(number)) {
+                number = '?';
+            }
+
             return {
                 id: id,
-                text: parseInt(result.data.text)
+                text: number
             }
         });
 }
