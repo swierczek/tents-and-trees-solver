@@ -160,8 +160,11 @@ function detectGrid(src) {
     let row = [];
 
     // keep track of these to detect where the numbers will be
-    let gridTop = src.size().height;
-    let gridLeft = src.size().width;
+    let numCols = Math.floor(src.size().width / size);
+    let numRows = Math.floor(src.size().height / size);
+
+    let gridTop = src.size().height - (numCols * size);
+    let gridLeft = src.size().width - (numRows * size);
 
     imageMetadata(src);
 
@@ -192,13 +195,13 @@ function detectGrid(src) {
         let count = 0;
         for (let x = 0; x < cell.size().width; x+=5) {
             for (let y = 0; y < cell.size().height; y+=3) {
-                avgColor += cell.ucharPtr(x, y)
+                avgColor += cell.ucharPtr(x, y);
                 count++;
             }
         }
 
         avgColor = avgColor / count;
-        if (avgColor > 40) {
+        if (avgColor > 0) {
             row.push('x');
             let rectangleColor = new cv.Scalar(255, 0, 0, 255);
             cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
@@ -210,15 +213,6 @@ function detectGrid(src) {
 
         // move left
         rect.x -= size;
-
-        // update where we know the left edge of the grid to be
-        if (rect.x > 0) {
-            gridLeft = rect.x;
-        }
-        // update where we know the top edge of the grid to be
-        if (rect.y > 0) {
-            gridTop = rect.y;
-        }
 
         // move up a row
         if (rect.x < 0) {
