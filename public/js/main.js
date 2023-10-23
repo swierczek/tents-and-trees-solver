@@ -11,18 +11,7 @@ let imgElement = document.getElementById('imageSrc');
 //     mat.delete();
 // };
 
-let cols = [];
-let rows = [];
 let grid = [];
-
-let colTextFoundCount = 0;
-let rowTextFoundCount = 0;
-
-let colsLength = 0;
-let rowsLength = 0;
-
-let colsEventTriggered = false;
-let rowsEventTriggered = false;
 
 var onOpenCvReady = function() {
     document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
@@ -159,7 +148,7 @@ function detectGrid(src) {
 
     // draw rectangle starting in the bottom right corner
     // https://docs.opencv.org/3.4/dc/dcf/tutorial_js_contour_features.html
-    let rectangleColor = new cv.Scalar(255, 0, 0);
+    // let rectangleColor = new cv.Scalar(255, 0, 0, 255);
     let rect = new cv.Rect(
         src.size().height - size,
         src.size().width - size,
@@ -178,13 +167,15 @@ function detectGrid(src) {
 
     // draw the full grid
     while (rect.x > 0 && rect.y > 0) {
+        // full cell
         let point1 = new cv.Point(rect.x, rect.y);
         let point2 = new cv.Point(rect.x + rect.width, rect.y + rect.height);
         // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
 
+        // middle 2/3 to account for drift or carryover treetops
         let point3 = new cv.Point(point1.x + inner, point1.y + inner);
         let point4 = new cv.Point(point2.x - inner, point2.y - inner);
-        cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+        // cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
 
         let innerRect = new cv.Rect(
             point4.x,
@@ -209,24 +200,31 @@ function detectGrid(src) {
         avgColor = avgColor / count;
         if (avgColor > 40) {
             row.push('x');
+            let rectangleColor = new cv.Scalar(255, 0, 0, 255);
+            cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
         } else {
             row.push('.');
+            let rectangleColor = new cv.Scalar(0, 255, 0, 255);
+            cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
         }
 
         // move left
         rect.x -= size;
 
+        // update where we know the left edge of the grid to be
         if (rect.x > 0) {
             gridLeft = rect.x;
         }
+        // update where we know the top edge of the grid to be
         if (rect.y > 0) {
             gridTop = rect.y;
         }
 
+        // move up a row
         if (rect.x < 0) {
             rows.push(row.reverse().join(''));
             row = [];
-            // console.log('row', row.reverse().join(''));
+
             rect.x = src.size().width - size;
             rect.y -= size;
         }
@@ -255,16 +253,23 @@ function detectGrid(src) {
 
     let numRow = [];
 
-    colsLength = Math.ceil((src.size().width - gridLeft) / size);
-    rowsLength = Math.ceil((src.size().height - gridTop) / size);
+    let colsLength = Math.ceil((src.size().width - gridLeft) / size);
+    let rowsLength = Math.ceil((src.size().height - gridTop) / size);
 
     console.log('colsLength', colsLength);
     console.log('rowsLength', rowsLength);
+
+    let results = [];
 
     for (let x = 0; x < colsLength; x++) {
         // let point1 = new cv.Point(numRect.x, numRect.y);
         // let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
         // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
+        if ((numRect.x + size) > src.size().width) {
+            console.log('adjusting width of number cell');
+            numRect.x = src.size().width - size;
+        }
 
         let cell = src.roi(numRect);
         // 80 works well for non-0, but 0 might be too dark.
@@ -273,14 +278,11 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         // tesseract it!
-        let result = findText(cell, 'col-' + x, x);
-        console.log(result);
-        numRow[result.num] = result.text;
+        let result = findText(cell, 'col-' + x);
+        results.push(result);
 
         // move right
         numRect.x += size;
-
-        // return cell;
     }
 
     // check the number cell
@@ -297,11 +299,9 @@ function detectGrid(src) {
         // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
 
         if ((numRect.y + size) > src.size().height) {
+            console.log('adjusting height of number cell');
             numRect.y = src.size().height - size;
         }
-
-        console.log(src.size());
-        console.log(numRect);
 
         let cell = src.roi(numRect);
         // // 80 works well for non-0, but 0 might be too dark.
@@ -310,18 +310,30 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         // tesseract it!
-        let result = findText(cell, 'row-' + y, y, false);
-        console.log(result);
-        // numRow.push(findText(cell, 'col-' + (numRow.length+1) ));
-        numRow[result.num] = result.text;
+        let result = findText(cell, 'row-' + y);
+        results.push(result);
 
-        // move up
+        // move down
         numRect.y += size;
-
-        // return cell;
     }
 
-    console.log(numRow);
+    /**
+     * Split the results into separate cols/rows and pass to print function
+     */
+    Promise.all(results).then((numbers) => {
+        let colNums = [];
+        let rowNums = [];
+
+        numbers.forEach((number) => {
+            if (number.id.indexOf('col') === 0) {
+                colNums.push(number.text);
+            } else {
+                rowNums.push(number.text);
+            }
+        });
+
+        printInput(colNums, rowNums);
+    });
 
     return src;
 }
@@ -391,8 +403,13 @@ function findCellWidth(src) {
     return width;
 }
 
-async function findText(src, id, num, colVar = true) {
-    // cv.imshow('canvasTemp', src);
+/**
+ * OCR to determine which digit(s) are in the image
+ *
+ * @param src black and white image of a number
+ * @param id for the canvas
+ */
+async function findText(src, id) {
     let canvas = document.createElement('canvas');
     canvas.setAttribute('id', id);
 
@@ -400,78 +417,23 @@ async function findText(src, id, num, colVar = true) {
 
     cv.imshow(id, src);
 
+    // configure the OCR worker
     const { createWorker } = Tesseract;
-    (async () => {
-        const worker = await createWorker('eng');
-        await worker.setParameters({
-            tessedit_char_whitelist: '0123456789',
-            // tessedit_pageseg_mode: 8 // PSM_SINGLE_WORD?
+    const worker = await createWorker('eng');
+    await worker.setParameters({
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: 8 // PSM_SINGLE_WORD
+    });
+
+    // return the promise
+    return await worker.recognize(document.getElementById(id))
+        .then(function(result) {
+            // TODO: if it's empty, return '?'
+            return {
+                id: id,
+                text: parseInt(result.data.text)
+            }
         });
-        let char = await worker.recognize(document.getElementById(id))
-            .then(function(result) {
-                // The result object of a text recognition contains detailed data about all the text
-                // recognized in the image, words are grouped by arrays etc
-                // console.log(id, result);
-
-                // Show recognized text in the browser somehow
-                if (colVar) {
-                    cols[num] = parseInt(result.data.text);
-                    colTextFoundCount++;
-                    console.log('cols', cols);
-
-                    if (colTextFoundCount === colsLength) {
-                        // Create the event
-                        var event = new CustomEvent("col-nums-determined", { "detail": cols.join('') });
-
-                        // Dispatch/Trigger/Fire the event
-                        document.dispatchEvent(event);
-                    }
-                } else {
-                    rows[num] = parseInt(result.data.text);
-                    rowTextFoundCount++;
-                    console.log('rows', rows);
-
-                    if (rowTextFoundCount === rowsLength) {
-                        // Create the event
-                        var event = new CustomEvent("row-nums-determined", { "detail": rows.join('') });
-
-                        // Dispatch/Trigger/Fire the event
-                        document.dispatchEvent(event);
-                    }
-                }
-                // cols[num] = result.data.text;
-                // return {
-                //     id: id,
-                //     num: num,
-                //     text: result.data.text
-                // };
-                return result.data.text;
-            });
-        // console.log(text);
-    })();
-
-    // detect 0-9
-    // let char = await Tesseract.recognize(document.getElementById(id))
-    //     .then(function(result) {
-    //         // The result object of a text recognition contains detailed data about all the text
-    //         // recognized in the image, words are grouped by arrays etc
-    //         // console.log(id, result);
-
-    //         // Show recognized text in the browser
-    //         cols[num] = parseInt(result.data.text);
-    //         // cols[num] = result.data.text;
-    //         // return {
-    //         //     id: id,
-    //         //     num: num,
-    //         //     text: result.data.text
-    //         // };
-    //         console.log(cols);
-    //         return result.data.text;
-    //     });
-
-    // console.log(char);
-
-    return '?';
 }
 
 // blur to help with edge detection and combat image compression?
@@ -482,32 +444,16 @@ async function findText(src, id, num, colVar = true) {
 
 // pyramids to find/match an object in the image? Not sure if that's useful yet or not
 
-// Add an event listener
-document.addEventListener("col-nums-determined", function(e) {
-    console.log('event listener', e.detail); // Prints "Example of an event"
-
-    colsEventTriggered = true;
-    if (colsEventTriggered && rowsEventTriggered) {
-        printInput();
-    }
-});
-
-document.addEventListener("row-nums-determined", function(e) {
-    console.log('event listener', e.detail); // Prints "Example of an event"
-
-    rowsEventTriggered = true;
-    if (colsEventTriggered && rowsEventTriggered) {
-        printInput();
-    }
-});
-
-function printInput() {
+/**
+ * Output the full grid data to a textarea
+ */
+function printInput(cols, rows) {
     let textarea = document.createElement('textarea');
-    textarea.setAttribute('rows', rowsLength);
+    textarea.setAttribute('rows', rows.length+1);
+    textarea.setAttribute('cols', cols.length+5);
 
     let input = ' ' + cols.join('') + "\r\n";
-    for (y=0; y < colsLength; y++) {
-        console.log(grid);
+    for (y=0; y < rows.length; y++) {
         input += rows[y] + grid[y] + "\r\n";
     }
     textarea.value = input;
