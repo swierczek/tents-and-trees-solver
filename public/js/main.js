@@ -1,4 +1,6 @@
 let imgElement = document.getElementById('imageSrc');
+
+// let imgElement = document.getElementById('imageSrc');
 // let inputElement = document.getElementById('fileInput');
 
 // inputElement.addEventListener('change', (e) => {
@@ -13,9 +15,38 @@ let imgElement = document.getElementById('imageSrc');
 
 let grid = [];
 
+let slider1Val = 0;
+let slider2Val = 0;
+
 var onOpenCvReady = function() {
     document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
 
+    let placeholders = document.querySelectorAll('.placeholder img');
+    placeholders.forEach(function(item, index) {
+        item.addEventListener('click', function(e) {
+            imgElement.src = item.src;
+            processImage();
+        });
+    });
+
+    let slider1 = document.querySelector('#slider1');
+    slider1.addEventListener('change', function(e) {
+        slider1Val = parseInt(this.value);
+        console.log('new slider1 value: ', slider1Val);
+        processImage();
+    });
+
+    let slider2 = document.querySelector('#slider2');
+    slider2.addEventListener('change', function(e) {
+        slider2Val = parseInt(this.value);
+        console.log('new slider2 value: ', slider2Val);
+        processImage();
+    })
+
+    processImage();
+}
+
+function processImage() {
     let src = cv.imread(imgElement);
     // let dst = new cv.Mat();
 
@@ -23,7 +54,9 @@ var onOpenCvReady = function() {
 
     src = cropGrid(src);
 
-    src = detectGrid(src);
+    src = detectGrid2(src);
+
+    // src = detectGrid(src);
 
     cv.imshow('canvasOutput', src);
     // dst.delete();
@@ -96,6 +129,9 @@ function cropGrid(src) {
     contours.delete();
     hierarchy.delete();
 
+    console.log(rect);
+    console.log(src.size());
+
     return src.roi(rect);
 }
 
@@ -133,6 +169,126 @@ function blackAndWhite(src, threshold, blackBg = true) {
     cv.threshold(bw, bw, threshold, 255, mode);
 
     return bw
+}
+
+function detectGrid2(src) {
+    let bw = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
+    bw = blackAndWhite(src, 67);
+
+    // https://docs.opencv.org/3.4/d7/de1/tutorial_js_canny.html
+    let edges = new cv.Mat();
+    cv.Canny(bw, edges, slider1Val, slider2Val, apertureSize = 3);
+
+    // dilate/dissolve to make the lines more prominent
+    // https://docs.opencv.org/3.4/d4/d76/tutorial_js_morphological_ops.html
+    let M2 = cv.Mat.ones(5, 5, cv.CV_8U);
+    cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, M2);
+
+    // https://docs.opencv.org/3.4/d3/de6/tutorial_js_houghlines.html
+    let lines = new cv.Mat();
+    // cv.HoughLines(src, lines, 100, Math.PI / 180, 30, 0, 0, 0, Math.PI);
+    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold = 120, minLength = 450, maxGap = 300);
+    // cv.HoughLines(src, lines, 1, Math.PI / 180, 30, 0, 0, Math.PI / 4, Math.PI / 2);
+
+    // determine lines
+    // start with a line on the right
+    let verticalLines = [src.size().width-1];
+    // start with a line on the bottom
+    let horizontalLines = [src.size().height-1];
+
+    for (let i = 0; i < lines.rows; i++) {
+        let x1 = lines.data32S[i * 4];
+        let y1 = lines.data32S[i * 4 + 1];
+
+        let x2 = lines.data32S[i * 4 + 2];
+        let y2 = lines.data32S[i * 4 + 3];
+
+        // only track horizontal/vertical lines
+        if (x1 === x2) {
+            verticalLines.push(x1);
+        } else if (y1 === y2) {
+            horizontalLines.push(y1);
+        }
+    }
+
+    // then filter out any similar lines i.e. x values within some value
+    verticalLines.forEach(function(item, index) {
+        verticalLines.forEach(function(item2, index2) {
+            if (index !== index2 && Math.abs(item2 - item) < 10) {
+                delete verticalLines[index2];
+            }
+        });
+    });
+    horizontalLines.forEach(function(item, index) {
+        horizontalLines.forEach(function(item2, index2) {
+            if (index !== index2 && Math.abs(item2 - item) < 10) {
+                delete horizontalLines[index2];
+            }
+        });
+    });
+
+    verticalLines = removeOutliers(verticalLines);
+    horizontalLines = removeOutliers(horizontalLines);
+
+    let gridTop = Math.min(...horizontalLines);
+    let gridLeft = Math.min(...verticalLines);
+    let gridBottom = Math.max(...horizontalLines);
+    let gridRight = Math.max(...verticalLines);
+
+    // then draw the lines as a gut check
+    verticalLines.forEach(function(item, index) {
+        let startPoint = new cv.Point(item, gridTop);
+        let endPoint = new cv.Point(item, gridBottom);
+
+        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 0, 0, 255), 3);
+    });
+    horizontalLines.forEach(function(item, index) {
+        let startPoint = new cv.Point(gridLeft, item);
+        let endPoint = new cv.Point(gridRight, item);
+
+        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 0, 0, 255), 3);
+    });
+
+    return src;
+}
+
+function removeOutliers(lines) {
+    lines = lines.filter(e=>e);
+    lines.sort(function(a, b) {
+        return a - b;
+    });
+    lines = lines.reverse();
+
+    // sorted biggest to smallest
+    console.log('sorted', lines);
+
+    // the first 3 will give us a good sense of distance
+    let averageDistance = 0;
+    for(let i=0; i<3; i++) {
+        averageDistance += Math.abs(lines[i] - lines[i+1]);
+    }
+    averageDistance = averageDistance / 3;
+
+    console.log('average', averageDistance);
+
+    for(var i = lines.length - 1; i >= 0; i--){
+        let diff = Math.abs(lines[i] - lines[i-1]);
+
+        if (diff < (averageDistance * .8) || diff > (averageDistance * 1.2)) {
+            // console.log('deleting ' + i);
+            // remove this item
+            lines.splice(i, 1);
+            // loop using this line again
+            i++;
+        }
+    }
+
+    // reindex
+//    lines = lines.filter(e=>e);
+
+    console.log('removed outliers', lines);
+
+    return lines;
 }
 
 /**
@@ -235,7 +391,7 @@ function detectGrid(src) {
     console.log(grid);
 
     // uncomment this to just output grid stuff, nothing OCR related
-    // return src;
+    return src;
 
     // now draw the box around the numbers
     // let point1 = new cv.Point(gridLeft, 0);
@@ -421,6 +577,7 @@ async function findText(src, id) {
     cv.imshow(id, src);
 
     // configure the OCR worker
+    // https://github.com/naptha/tesseract.js/blob/HEAD/docs/api.md#create-worker
     const { createWorker } = Tesseract;
     const worker = await createWorker('eng');
     await worker.setParameters({

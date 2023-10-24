@@ -16,6 +16,23 @@
         .inputoutput > * {
             width: 100%;
         }
+
+        .placeholder {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-gap: 5px;
+            padding-bottom: 20px;
+        }
+
+        .placeholder > img {
+            width: 90%;
+            cursor: pointer;
+        }
+
+        #imageSrc {
+            width: 660px;
+        }
     </style>
 </head>
 
@@ -23,10 +40,28 @@
     <p id="status">OpenCV.js is loading...</p>
     <div class="wrapper">
         <div class="inputoutput">
-            <!-- 3 isn't valid, 6 is wtf, 8 doesn't load, 10 only gets the last 2 rows, 12 isn't valid -->
-            <img id="imageSrc" alt="No Image" src="/images/trees-6.png" />
-            <!-- <img id="imageSrc" alt="No Image" src="/images/trees.jpg" /> -->
-            <!-- <img id="imageSrc" alt="No Image" src="/images/trees.png" /> -->
+            <input type="range" id="slider1" min="0" max="255" />
+            <input type="range" id="slider2" min="0" max="255" />
+
+            <div class="placeholder">
+                <!-- 6 is wtf, 8 doesn't load, 10 only gets the last 2 rows, 12 isn't valid -->
+                <!-- <img alt="trees" src="/images/trees.png" /> -->
+                <img alt="trees-1" src="/images/trees-1.png" />
+                <!-- <img alt="trees-2" src="/images/trees-2.png" /> -->
+                <img alt="trees-4" src="/images/trees-4.png" />
+                <img alt="trees-5" src="/images/trees-5.png" />
+                <img alt="trees-6" src="/images/trees-6.png" />
+                <img alt="trees-7" src="/images/trees-7.png" />
+                <img alt="trees-8" src="/images/trees-8.png" />
+                <!-- <img alt="trees-9" src="/images/trees-9.png" /> -->
+                <img alt="trees-10" src="/images/trees-10.png" />
+                <img alt="trees-11" src="/images/trees-11.png" />
+                <img alt="trees-13" src="/images/trees-13.png" />
+                <img alt="trees-14" src="/images/trees-14.png" />
+                <img alt="trees-15" src="/images/trees-15.png" />
+            </div>
+
+            <img id="imageSrc" alt="No Image" src="/images/trees-1.png" />
             <!-- <img id="imageSrc" alt="No Image" src="/images/test.png" /> -->
             <!-- <div class="caption">imageSrc <input type="file" id="fileInput" name="file" /></div> -->
         </div>
