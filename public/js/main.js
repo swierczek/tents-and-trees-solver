@@ -172,6 +172,7 @@ function blackAndWhite(src, threshold, blackBg = true) {
 }
 
 function detectGrid2(src) {
+    let src2 = src.clone();
     let bw = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
     bw = blackAndWhite(src, 67);
 
@@ -240,14 +241,99 @@ function detectGrid2(src) {
         let startPoint = new cv.Point(item, gridTop);
         let endPoint = new cv.Point(item, gridBottom);
 
-        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 0, 0, 255), 3);
+        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
     horizontalLines.forEach(function(item, index) {
         let startPoint = new cv.Point(gridLeft, item);
         let endPoint = new cv.Point(gridRight, item);
 
-        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 0, 0, 255), 3);
+        cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
+
+    let rows = [];
+    let row = [];
+
+    // console.log('vert', verticalLines);
+
+    // now iterate over the lines to detect the cells
+    for(x=0; x<verticalLines.length-1; x++) {
+        let x1 = verticalLines[x];
+        let x2 = verticalLines[x+1];
+
+        for(y=0; y<horizontalLines.length-1; y++) {
+            // if (x != 7 || y != 1) {
+            //     continue;
+            // }
+
+            let y1 = horizontalLines[y];
+            let y2 = horizontalLines[y+1];
+
+            // full cell
+            let point1 = new cv.Point(x1, y1);
+            let point2 = new cv.Point(x2, y2);
+            // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+
+            // console.log('point1', point1);
+            // console.log('point2', point2);
+
+            // middle 2/3 to account for drift or carryover treetops
+            let scale = .33;
+            let innerWidth = Math.floor((x2 - x1) * scale);
+            let innerHeight = Math.floor((y2 - y1) * scale);
+
+            // console.log('w', innerWidth);
+            // console.log('h', innerHeight);
+
+            let point3 = new cv.Point(point1.x + innerWidth, point1.y + innerHeight);
+            let point4 = new cv.Point(point2.x - innerWidth, point2.y - innerHeight);
+            // let rectangleColor = new cv.Scalar(0, 255, 255, 255);
+            // cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+
+            // console.log('point3', point3);
+            // console.log('point4', point4);
+
+            let innerRect = new cv.Rect(
+                point3.x,
+                point3.y,
+                point4.x - point3.x,
+                point4.y - point3.y
+            );
+
+            // console.log('rect', innerRect);
+
+            let cell = src2.roi(innerRect);
+            cell = blackAndWhite(cell, 120);
+
+            // return cell;
+
+            // don't need to check every pixel...
+            let avgColor = 0;
+            let count = 0;
+            for (let i = 0; i < cell.size().width; i+=5) {
+                for (let j = 0; j < cell.size().height; j+=3) {
+                    avgColor += parseInt(cell.ucharPtr(i, j));
+                    count++;
+                }
+            }
+
+            console.log('avgColor', x, y, avgColor, count, avgColor / count);
+
+            avgColor = avgColor / count;
+            if (avgColor > 100) {
+                row.push('x');
+                let rectangleColor = new cv.Scalar(255, 0, 0, 255);
+                cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+            } else {
+                row.push('.');
+                let rectangleColor = new cv.Scalar(0, 255, 0, 255);
+                cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+            }
+        }
+
+        rows.push(row.join(''));
+    }
+
+    console.log('grid', rows);
 
     return src;
 }
@@ -275,7 +361,6 @@ function removeOutliers(lines) {
         let diff = Math.abs(lines[i] - lines[i-1]);
 
         if (diff < (averageDistance * .8) || diff > (averageDistance * 1.2)) {
-            // console.log('deleting ' + i);
             // remove this item
             lines.splice(i, 1);
             // loop using this line again
@@ -283,8 +368,8 @@ function removeOutliers(lines) {
         }
     }
 
-    // reindex
-//    lines = lines.filter(e=>e);
+    // return smallest to biggest
+    lines = lines.reverse();
 
     console.log('removed outliers', lines);
 
