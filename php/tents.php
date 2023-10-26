@@ -1,16 +1,31 @@
 <?php
 
-$filename = $argv[1] ?? getcwd() . '/../resources/tent-inputs-other.txt';
-// $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
+header("Access-Control-Allow-Origin: http://localhost:8086");
 
-$inputs = explode("\n\n", file_get_contents($filename));
+$source = 'cli';
+
+if ($_POST && isset($_POST['puzzleInput'])) {
+    $inputs = [
+        $_POST['puzzleInput']
+    ];
+    $source = 'browser';
+} else {
+    $filename = $argv[1] ?? getcwd() . '/../resources/tent-inputs-other.txt';
+    // $filename = $argv[1] ?? getcwd() . '/../resources/tent-input.txt';
+
+    $inputs = explode("\n\n", file_get_contents($filename));
+}
 
 foreach($inputs as $key => $val) {
     $rows = explode("\n", $val);
 
     // if the first row isn't the column numbers, remove it
-    if (!preg_match("/^ [\d?]+$/", $rows[0])) {
+    if (!preg_match("/^ [\d?]+[\r\n]?$/", $rows[0])) {
         unset($rows[0]);
+    }
+
+    if ($rows[count($rows)-1] === "") {
+        unset($rows[count($rows)-1]);
     }
 
     $inputs[$key] = implode("\n", $rows);
@@ -25,23 +40,27 @@ foreach($inputs as $key => $input) {
     $start = microtime(true);
 
     $solver = new TentSolver($input);
+    $solver->setOutputLevel($source === 'browser' ? 0 : 1);
+    $solver->setLineEnding($source === 'browser' ? '<br>' : "\n");
     $result = $solver->solve($outputSolution);
 
     $duration = microtime(true) - $start;
 
     // if any tests fail, rerun with debug to essentially step through the solution so far
     if (!$result) {
-        e('Solution NOT found for puzzle ' . $key . '. Running again with debug enabled.');
+        $solver->print('Solution NOT found for puzzle ' . $key . '. Running again with debug enabled.');
         $solver->setDebug(true);
         $solver->solve();
 
         die;
     }
 
-    e('Solution found for puzzle ' . $key . ' in ' . $result . ' loops and ' . round(($duration * 1000), 1) . ' ms');
-}
+    $solver->print('Solution found for puzzle ' . $key . ' in ' . $result . ' loops and ' . round(($duration * 1000), 1) . ' ms');
 
-e('Solution found for all puzzles!');
+    if ($outputSolution) {
+        $solver->print('Solution found for all puzzles!');
+    }
+}
 
 die;
 
@@ -88,6 +107,8 @@ class TentSolver {
     private $tentCount = 0;
 
     private $debug = false;
+    private $outputLevel = 0;
+    private $lineEnding = "\n";
 
     // $x,$y tree => $x,$y tent
     private $pairs = [];
@@ -140,6 +161,7 @@ class TentSolver {
             // ooxooxo means the last o will be a tent
             '--x--x(-)' => self::TENT,
             '--x(-)x--' => self::TENT, // permutation of the previous
+            '--x(-)x(-)' => self::TENT, // permutation of the previous
 
             // ooxxxoxo means the last 2 os must be tents
             '--x{2,}(-)x(-)' => self::TENT,
@@ -151,10 +173,17 @@ class TentSolver {
             '(-)-(-)x{2,}(-)' => self::TENT,
 
             '(-)x{1,}--x{1,}--' => self::TENT,
+
+            '(--)x(--)x(--)' => self::GRASS,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
             '-(x)-(x)-(x)-(x)-' => self::GRASS,
+
+            //
+            '--x{1,}--x{1,}--x{1,}(-)' => self::TENT,
+
+            '(--)x{1,}(--)x{1,}(--)' => self::GRASS,
         ],
         5 => [
             // alternating ox means the xs in other rows will be grass
@@ -200,6 +229,16 @@ class TentSolver {
         $this->debug = $debug;
     }
 
+    public function setOutputLevel(int $level): void
+    {
+        $this->outputLevel = $level;
+    }
+
+    public function setLineEnding(string $type): void
+    {
+        $this->lineEnding = $type;
+    }
+
     /**
      * Run the solver!
      */
@@ -213,69 +252,69 @@ class TentSolver {
             $loop++;
 
             if ($this->debug) {
-                e('loop ' . $loop);
+               $this->print('loop ' . $loop);
             }
 
             if ($this->debug) {
-                e('fillGrass');
+               $this->print('fillGrass');
             }
             $changed = $this->fillGrass() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('fillCols');
+               $this->print('fillCols');
             }
             $changed = $this->fillCols() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('fillRows');
+               $this->print('fillRows');
             }
             $changed = $this->fillRows() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('markCornerGrass');
+               $this->print('markCornerGrass');
             }
             $changed = $this->markCornerGrass() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('findLastTreesTents');
+               $this->print('findLastTreesTents');
             }
             $changed = $this->findLastTreesTents() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('patternMatchRows');
+               $this->print('patternMatchRows');
             }
             $changed = $this->patternMatchRows() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             if ($this->debug) {
-                e('patternMatchCols');
+               $this->print('patternMatchCols');
             }
             $changed = $this->patternMatchCols() || $changed;
             if ($this->debug) {
-                $this->print();
+                $this->printGrid();
             }
 
             $changed = $this->pairTrees() || $changed;
             $changed = $this->pairTents() || $changed;
 
-            // $this->print();
+            // $this->printGrid();
             $this->validate();
         }
 
@@ -283,26 +322,26 @@ class TentSolver {
 
 
         if ($this->debug || $outputSolution) {
-            $this->print();
+            $this->printGrid();
         }
 
         if ($changed && $this->tentCount === $this->treeCount) {
             if ($this->debug) {
-                e('SOLVED SOLVED SOLVED!!!');
+               $this->print('SOLVED SOLVED SOLVED!!!');
             }
             return $loop;
         } else {
             if ($this->debug) {
-                e('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
+               $this->print('~~~~~ NOT SOLVED ~~~~~ maybe additional patterns need to be implemented?');
             }
         }
 
         if ($this->debug) {
-            e('num trees: ' . $this->treeCount);
-            e('num tents: ' . $this->tentCount);
-            e('num loops: ' . $temp);
-            e('changed: ' . ($changed ? 'yes' : 'no'));
-            e('tent/tree counts match: ' . ($this->tentCount === $this->treeCount ? 'yes' : 'no'));
+           $this->print('num trees: ' . $this->treeCount);
+           $this->print('num tents: ' . $this->tentCount);
+           $this->print('num loops: ' . $loop);
+           $this->print('changed: ' . ($changed ? 'yes' : 'no'));
+           $this->print('tent/tree counts match: ' . ($this->tentCount === $this->treeCount ? 'yes' : 'no'));
         }
 
         return false;
@@ -617,8 +656,8 @@ class TentSolver {
     }
 
     // debugging
-    private function print() {
-        e('-----------');
+    private function printGrid() {
+        $this->print('-----------');
 
         $currRow = '';
         foreach($this->getAllCells() as $d) {
@@ -630,14 +669,15 @@ class TentSolver {
             }
 
             if ($y !== $currRow) {
-                e();
+                $this->print('', true);
+                // echo "<br>";
                 $currRow = $y;
             }
 
             // output col #s
             if ($x === 0 && $y === 0) {
-                e('    ' . implode(' ', $this->colCounts));
-                e('    ' . implode(' ', range(0, $this->numCols-1)));
+                $this->print('    ' . implode(' ', $this->colCounts), true);
+                $this->print('    ' . implode(' ', range(0, $this->numCols-1)), true);
             }
 
             // output row #s
@@ -648,16 +688,17 @@ class TentSolver {
             echo $cell . ' ';
         }
 
-        e();
+        $this->print('', true);
 
         if ($this->debug) {
-            echo "\nTree->tent pairs (".count($this->pairs).")\n";
+            $this->print();
+            $this->print("Tree->tent pairs (".count($this->pairs).")");
             foreach($this->pairs as $tree => $tent) {
-                e("$tree -> $tent");
+                $this->print("$tree -> $tent");
             }
         }
 
-        e('-----------------------');
+       $this->print('-----------------------');
     }
 
     private function validate() {
@@ -672,7 +713,7 @@ class TentSolver {
             // if the number of tents in this column is greater than the number expected
             if ($this->count($col, self::TENT) > $this->colCounts[$i]) {
                 echo "ERROR ERROR ERROR col $i\n\n";
-                $this->print();
+                $this->printGrid();
                 die;
             }
         }
@@ -688,7 +729,7 @@ class TentSolver {
             // if the number of tents in this column is greater than the number expected
             if ($this->count($row, self::TENT) > $this->rowCounts[$i]) {
                 echo "ERROR ERROR ERROR row $i\n\n";
-                $this->print();
+                $this->printGrid();
                 die;
             }
         }
@@ -719,7 +760,7 @@ class TentSolver {
             $remainingTents = $this->rowCounts[$y] - $this->count($row, self::TENT);
 
             if ($remainingTents < 0) {
-                e('ERROR TOO MANY TENTS in row ' . $y);
+                $this->print('ERROR TOO MANY TENTS in row ' . $y);
                 die;
             }
 
@@ -738,7 +779,7 @@ class TentSolver {
                 // break the pattern into tokens so we can reverse the regex
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
-                    e('REVERSE PATTERN NOT FOUND: '.$pattern);
+                    $this->print('REVERSE PATTERN NOT FOUND: '.$pattern);
                     die;
                 }
                 $reversePattern = implode('', array_reverse($patternMatches[0]));
@@ -757,15 +798,15 @@ class TentSolver {
 
                     if ($this->debug) {
                         if ($key == 0) {
-                            e('REGULAR PATTERN MATCHED');
-                            e('   row: ' . $y);
-                            e('   rowString: ' . $rowString);
-                            e('   pattern: ' . $pattern);
+                            $this->print('REGULAR PATTERN MATCHED');
+                            $this->print('   row: ' . $y);
+                            $this->print('   rowString: ' . $rowString);
+                            $this->print('   pattern: ' . $pattern);
                         } else {
-                            e('REVERSED PATTERN MATCHED');
-                            e('   row: ' . $y);
-                            e('   rowString: ' . $rowString);
-                            e('   reversePattern: ' . $reversePattern);
+                            $this->print('REVERSED PATTERN MATCHED');
+                            $this->print('   row: ' . $y);
+                            $this->print('   rowString: ' . $rowString);
+                            $this->print('   reversePattern: ' . $reversePattern);
                         }
                     }
 
@@ -810,7 +851,7 @@ class TentSolver {
             $remainingTents = $this->colCounts[$x] - $this->count($col, self::TENT);
 
             if ($remainingTents < 0) {
-                e('ERROR TOO MANY TENTS in col ' . $x);
+                $this->print('ERROR TOO MANY TENTS in col ' . $x);
                 die;
             }
 
@@ -829,7 +870,7 @@ class TentSolver {
                 // break the pattern into tokens so we can reverse the regex
                 $matchedPattern = preg_match_all(self::PATTERN_REVERSE, $pattern, $patternMatches);
                 if (!$matchedPattern) {
-                    e('REVERSE PATTERN NOT FOUND: '.$pattern);
+                    $this->print('REVERSE PATTERN NOT FOUND: '.$pattern);
                     die;
                 }
                 $reversePattern = implode('', array_reverse($patternMatches[0]));
@@ -848,15 +889,15 @@ class TentSolver {
 
                     if ($this->debug) {
                         if ($key == 0) {
-                            e('REGULAR PATTERN MATCHED');
-                            e('   col: ' . $x);
-                            e('   colString: ' . $colString);
-                            e('   pattern: ' . $pattern);
+                            $this->print('REGULAR PATTERN MATCHED');
+                            $this->print('   col: ' . $x);
+                            $this->print('   colString: ' . $colString);
+                            $this->print('   pattern: ' . $pattern);
                         } else {
-                            e('REVERSED PATTERN MATCHED');
-                            e('   col: ' . $x);
-                            e('   colString: ' . $colString);
-                            e('   reversePattern: ' . $reversePattern);
+                            $this->print('REVERSED PATTERN MATCHED');
+                            $this->print('   col: ' . $x);
+                            $this->print('   colString: ' . $colString);
+                            $this->print('   reversePattern: ' . $reversePattern);
                         }
                     }
 
@@ -987,12 +1028,16 @@ class TentSolver {
 
         return $changed;
     }
-}
 
-function e($input = '') {
-    if (is_bool($input)) {
-        $input = $input ? 'true' : 'false';
+    function print($input = '', $override = false) {
+        if ($this->outputLevel === 0 && !$override) {
+            return '';
+        }
+
+        if (is_bool($input)) {
+            $input = $input ? 'true' : 'false';
+        }
+
+        echo $input . $this->lineEnding;
     }
-
-    echo $input . "\n";
 }
