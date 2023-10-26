@@ -15,7 +15,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "serve": "http-serve"
+    "serve": "http-serve -p 8086 & php -S localhost:8087 && fg"
   },
   "browserslist": {
     "production": [

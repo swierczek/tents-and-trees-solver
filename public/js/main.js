@@ -18,28 +18,48 @@ let grid = [];
 let slider1Val = 0;
 let slider2Val = 0;
 
+let ocr = true;
+
+let statuses = [];
+
+let completedOCRCount = 0;
+
 var onOpenCvReady = function() {
-    document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+    updateStatus('OpenCV.js is ready');
 
     let placeholders = document.querySelectorAll('.placeholder img');
     placeholders.forEach(function(item, index) {
         item.addEventListener('click', function(e) {
+            updateStatus('');
+            updateStatus('New image clicked...');
+
+            let active = document.querySelector('.placeholder img.active');
+            if (active) {
+                active.classList.remove('active');
+            }
+
+            item.classList.add('active');
+
             imgElement.src = item.src;
             processImage();
         });
     });
 
+    let activeImage = document.querySelector('.placeholder img.active');
+
+    imgElement.src = activeImage.src;
+
     let slider1 = document.querySelector('#slider1');
     slider1.addEventListener('change', function(e) {
         slider1Val = parseInt(this.value);
-        console.log('new slider1 value: ', slider1Val);
+        // console.log('new slider1 value: ', slider1Val);
         processImage();
     });
 
     let slider2 = document.querySelector('#slider2');
     slider2.addEventListener('change', function(e) {
         slider2Val = parseInt(this.value);
-        console.log('new slider2 value: ', slider2Val);
+        // console.log('new slider2 value: ', slider2Val);
         processImage();
     })
 
@@ -47,18 +67,34 @@ var onOpenCvReady = function() {
 }
 
 function processImage() {
+    updateStatus('Processing image...');
+
+    grid = [];
+    completedOCRCount = 0;
+
+    let form = document.querySelector('form');
+
     let src = cv.imread(imgElement);
     // let dst = new cv.Mat();
 
     // imageMetadata(src);
 
-    let textareas = document.querySelectorAll('textarea');
-    textareas.forEach((textarea) => {
-        textarea.remove();
+    let textarea = document.querySelector('#puzzleInput');
+    textarea.setAttribute('style', 'display:none');
+    textarea.value = '';
+
+    let output = document.querySelector('#puzzleSolution');
+    output.innerText = '';
+
+    let ocrPlaceholders = document.querySelectorAll('.ocr-placeholder');
+    ocrPlaceholders.forEach((canvas) => {
+        canvas.remove();
     });
 
+    updateStatus('Cropping grid...');
     src = cropGrid(src);
 
+    updateStatus('Detecting cells...');
     src = detectGrid(src);
 
     cv.imshow('canvasOutput', src);
@@ -131,9 +167,6 @@ function cropGrid(src) {
 
     contours.delete();
     hierarchy.delete();
-
-    console.log(rect);
-    console.log(src.size());
 
     return src.roi(rect);
 }
@@ -262,17 +295,17 @@ function detectGrid(src) {
         cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
 
-    let grid = [];
+    // let grid = [];
 
     // now iterate over the lines to detect the cells
-    for(x=0; x<verticalLines.length-1; x++) {
+    for(y=0; y<horizontalLines.length-1; y++) {
         let row = [];
-        let x1 = verticalLines[x];
-        let x2 = verticalLines[x+1];
+        let y1 = horizontalLines[y];
+        let y2 = horizontalLines[y+1];
 
-        for(y=0; y<horizontalLines.length-1; y++) {
-            let y1 = horizontalLines[y];
-            let y2 = horizontalLines[y+1];
+        for(x=0; x<verticalLines.length-1; x++) {
+            let x1 = verticalLines[x];
+            let x2 = verticalLines[x+1];
 
             // full cell
             let point1 = new cv.Point(x1, y1);
@@ -326,8 +359,17 @@ function detectGrid(src) {
 
     console.log('grid', grid);
 
+    // return early if we're not running OCR
+    if (!ocr) {
+        updateStatus('OCR disabled, returning image');
+        return src;
+    }
+
     let results = [];
 
+    let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
+
+    updateStatus('Running OCR on ' + ocrCount + ' cells...');
     for (let x = 0; x < verticalLines.length-1; x++) {
         let numRect = new cv.Rect(
             verticalLines[x],
@@ -387,6 +429,7 @@ function detectGrid(src) {
             }
         });
 
+        updateStatus('Printing grid...');
         printInput(colNums, rowNums, grid);
     });
 
@@ -401,7 +444,7 @@ function removeOutliers(lines) {
     lines = lines.reverse();
 
     // sorted biggest to smallest
-    console.log('sorted', lines);
+    // console.log('sorted', lines);
 
     // the first 3 will give us a good sense of distance
     let averageDistance = 0;
@@ -410,7 +453,7 @@ function removeOutliers(lines) {
     }
     averageDistance = averageDistance / 3;
 
-    console.log('average', averageDistance);
+    // console.log('average', averageDistance);
 
     for(var i = lines.length - 1; i >= 0; i--){
         let diff = Math.abs(lines[i] - lines[i-1]);
@@ -426,8 +469,6 @@ function removeOutliers(lines) {
     // return smallest to biggest
     lines = lines.reverse();
 
-    console.log('removed outliers', lines);
-
     return lines;
 }
 
@@ -439,6 +480,7 @@ function removeOutliers(lines) {
  */
 async function findText(src, id) {
     let canvas = document.createElement('canvas');
+    canvas.setAttribute('class', 'ocr-placeholder');
     canvas.setAttribute('id', id);
 
     document.querySelector('body').append(canvas);
@@ -458,6 +500,9 @@ async function findText(src, id) {
     // return the promise
     return await worker.recognize(document.getElementById(id))
         .then(function(result) {
+            completedOCRCount++;
+            updateStatus('Single OCR number complete: ' + completedOCRCount);
+
             // if it's empty, return '?'
             let number = parseInt(result.data.text);
             if (isNaN(number)) {
@@ -483,19 +528,44 @@ async function findText(src, id) {
  * Output the full grid data to a textarea
  */
 function printInput(cols, rows, grid) {
-    let textarea = document.createElement('textarea');
+    let textarea = document.querySelector('#puzzleInput');
     textarea.setAttribute('rows', rows.length+1);
     textarea.setAttribute('cols', cols.length+5);
+    textarea.setAttribute('style', 'display:block');
 
-    console.log(rows);
-    console.log(cols);
-    console.log(grid);
+    // console.log(rows);
+    // console.log(cols);
+    // console.log(grid);
 
-    let input = ' ' + cols.join('') + "\r\n";
+    let input = ' ' + cols.join('') + "\n";
     for (y=0; y < rows.length; y++) {
-        input += rows[y] + grid[y] + "\r\n";
+        input += rows[y] + grid[y] + "\n";
     }
     textarea.value = input;
 
-    document.querySelector('body').prepend(textarea);
+    updateStatus('Sending to solver...');
+    let form = document.querySelector('form');
+
+    fetch(
+        form.action,
+        {
+            method:'post',
+            body: new FormData(form)
+        }
+    ).then((response) => {
+        return response.text();
+    }).then((response) => {
+        updateStatus('Complete!');
+        document.querySelector('#puzzleSolution').innerHTML = response.replaceAll(' ', '&nbsp;');
+    });
+}
+
+function updateStatus(status) {
+    if (status == '') {
+        statuses = [];
+    } else {
+        statuses.push(status);
+    }
+
+    document.getElementById('status').innerHTML = statuses.join('<br>');
 }
