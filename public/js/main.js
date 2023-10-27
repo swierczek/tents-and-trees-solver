@@ -14,6 +14,8 @@ let imgElement = document.getElementById('imageSrc');
 // };
 
 let grid = [];
+let verticalLines = [];
+let horizontalLines = [];
 
 let slider1Val = 0;
 let slider2Val = 0;
@@ -70,6 +72,8 @@ function processImage() {
     updateStatus('Processing image...');
 
     grid = [];
+    verticalLines = [];
+    horizontalLines = [];
     completedOCRCount = 0;
 
     let form = document.querySelector('form');
@@ -238,9 +242,9 @@ function detectGrid(src) {
 
     // determine lines
     // start with a line on the right
-    let verticalLines = [src.size().width-1];
+    verticalLines = [src.size().width-1];
     // start with a line on the bottom
-    let horizontalLines = [src.size().height-1];
+    horizontalLines = [src.size().height-1];
 
     for (let i = 0; i < lines.rows; i++) {
         let x1 = lines.data32S[i * 4];
@@ -436,6 +440,64 @@ function detectGrid(src) {
     return src;
 }
 
+function displaySolutionGrid(results) {
+    let img = document.querySelector('#canvasOutput');
+    let src = cv.imread(img);
+
+    let tentImg = document.querySelector('#tent');
+    let imgSrc = cv.imread(tentImg);
+
+    results.forEach(function(item, index) {
+        let x = parseInt(item.x);
+        let y = parseInt(item.y);
+
+        /*
+            x=0, y=1 means:
+                left edge is verticalLines[0]
+                right edge is verticalLines[0+1]
+                top is horizontalLines[1]
+                bottom is horizontalLines[1+1]
+        */
+        let tent = new cv.Rect(
+            verticalLines[x],
+            horizontalLines[y],
+            verticalLines[x+1] - verticalLines[x],
+            horizontalLines[y+1] - horizontalLines[y]
+        );
+
+        // resize the tent image
+        // https://docs.opencv.org/3.4/dd/d52/tutorial_js_geometric_transformations.html
+        imgSrc2 = imgSrc.clone();
+        let dsize = new cv.Size(tent.width, tent.height);
+        cv.resize(imgSrc2, imgSrc2, dsize, 0, 0, cv.INTER_AREA);
+
+        // add padding to make the tent image the same size as src
+        // https://docs.opencv.org/3.4/de/d06/tutorial_js_basic_ops.html
+        let size = [
+            horizontalLines[y], // top
+            src.size().height - horizontalLines[y+1], // bottom
+            verticalLines[x], // left
+            src.size().width - verticalLines[x+1], // right
+        ];
+
+        cv.copyMakeBorder(imgSrc2, imgSrc2, ...size, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
+
+        // https://docs.opencv.org/3.4/d5/df3/tutorial_js_trackbar.html
+        // cv.addWeighted( imgSrc2, 1, src, 1, 0.0, src, -1);
+
+        // https://docs.opencv.org/3.4/dd/d4d/tutorial_js_image_arithmetics.html
+        // https://docs.opencv.org/3.4/d2/de8/group__core__array.html#gafafb2513349db3bcff51f54ee5592a19
+        cv.add(src, imgSrc2, src);
+
+        imgSrc2.delete();
+    });
+
+    cv.imshow('canvasOutput', src);
+
+    src.delete();
+    imgSrc.delete();
+}
+
 function removeOutliers(lines) {
     lines = lines.filter(e=>e);
     lines.sort(function(a, b) {
@@ -553,10 +615,11 @@ function printInput(cols, rows, grid) {
             body: new FormData(form)
         }
     ).then((response) => {
-        return response.text();
+        return response.json();
     }).then((response) => {
         updateStatus('Complete!');
-        document.querySelector('#puzzleSolution').innerHTML = response.replaceAll(' ', '&nbsp;');
+        document.querySelector('#puzzleSolution').innerHTML = response;
+        displaySolutionGrid(response);
     });
 }
 

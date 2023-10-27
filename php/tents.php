@@ -42,6 +42,7 @@ foreach($inputs as $key => $input) {
     $solver = new TentSolver($input);
     $solver->setOutputLevel($source === 'browser' ? 0 : 1);
     $solver->setLineEnding($source === 'browser' ? '<br>' : "\n");
+    $solver->setGridReturnType($source === 'browser' ? 'json' : 'txt');
     $result = $solver->solve($outputSolution);
 
     $duration = microtime(true) - $start;
@@ -109,6 +110,7 @@ class TentSolver {
     private $debug = false;
     private $outputLevel = 0;
     private $lineEnding = "\n";
+    private $gridReturnType = 'txt';
 
     // $x,$y tree => $x,$y tent
     private $pairs = [];
@@ -234,9 +236,14 @@ class TentSolver {
         $this->outputLevel = $level;
     }
 
-    public function setLineEnding(string $type): void
+    public function setLineEnding(string $ending): void
     {
-        $this->lineEnding = $type;
+        $this->lineEnding = $ending;
+    }
+
+    public function setGridReturnType(string $type): void
+    {
+        $this->gridReturnType = $type;
     }
 
     /**
@@ -322,7 +329,26 @@ class TentSolver {
 
 
         if ($this->debug || $outputSolution) {
+            if ($this->gridReturnType === 'json') {
+                // output just the tents - can probably just check the pairs!
+                @header('Content-Type: application/json; charset=UTF-8');
+
+                $tents = [];
+                foreach($this->pairs as $tree => $tent) {
+                    $coords = explode(',', $tent);
+                    $tents[] = [
+                        'x' => $coords[0],
+                        'y' => $coords[1],
+                    ];
+                }
+
+                echo json_encode($tents);
+
+                exit;
+            } else {
+                // print the full grid
             $this->printGrid();
+        }
         }
 
         if ($changed && $this->tentCount === $this->treeCount) {
@@ -1029,7 +1055,7 @@ class TentSolver {
         return $changed;
     }
 
-    function print($input = '', $override = false) {
+    public function print($input = '', $override = false) {
         if ($this->outputLevel === 0 && !$override) {
             return '';
         }
