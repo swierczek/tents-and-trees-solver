@@ -191,6 +191,30 @@ class TentSolver {
             // alternating ox means the xs in other rows will be grass
             '-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
         ],
+        6 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
+        7 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
+        8 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
+        9 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
+        10 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
+        11 => [
+            // alternating ox means the xs in other rows will be grass
+            '-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-(x)-' => self::GRASS,
+        ],
     ];
 
     public function __construct(string $input) {
@@ -333,6 +357,8 @@ class TentSolver {
                 // output just the tents - can probably just check the pairs!
                 @header('Content-Type: application/json; charset=UTF-8');
 
+                $success = $this->tentCount === $this->treeCount;
+
                 $tents = [];
                 foreach($this->pairs as $tree => $tent) {
                     $coords = explode(',', $tent);
@@ -342,7 +368,7 @@ class TentSolver {
                     ];
                 }
 
-                echo json_encode($tents);
+                echo json_encode(['tents' => $tents, 'success' => $success]);
 
                 exit;
             } else {

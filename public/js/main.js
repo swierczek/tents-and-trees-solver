@@ -73,8 +73,8 @@ var onOpenCvReady = function() {
 
     let slider3 = document.querySelector('#slider3');
     if (slider3) {
-        slider3.value = 3; // reset it on page load
-        slider3Val = slider3.value;
+        slider3.value = 5; // reset it on page load
+        slider3Val = parseInt(slider3.value);
         slider3.addEventListener('change', function(e) {
             slider3Val = parseInt(this.value);
             // console.log('new slider3 value: ', slider2Val);
@@ -757,10 +757,11 @@ function printInput(cols, rows, grid) {
             console.log('response', response);
 
             updateStatus('Complete!');
-            document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response);
+            updateStatus(response.success ? 'Solved!' : 'Not solved :(');
+            document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
 
             updateStatus('Displaying results...');
-            displaySolutionGrid(response);
+            displaySolutionGrid(response.tents);
         });
     }
 }
