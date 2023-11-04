@@ -49,23 +49,33 @@
 <body>
     <form action="http://localhost:8087/php/tents.php" method="GET">
         <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
-        <p id="puzzleSolution"></p>
+        <!-- fake puzzle solution goes with trees-6 -->
+        <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p>
     </form>
 
     <p id="status">OpenCV.js is loading...</p>
     <div class="wrapper">
         <div class="inputoutput">
-            <input type="range" id="slider1" min="0" max="255" />
-            <input type="range" id="slider2" min="0" max="255" />
+            <!-- <input type="range" id="slider1" min="0" max="255" /> -->
+            <!-- <input type="range" id="slider2" min="0" max="255" /> -->
+            <label><input type="checkbox" name="ocr" id="ocr-checkbox" value="yes" /> Send for OCR?</label>
+            <input type="range" id="slider3" min="0" max="5" value="3" list="markers" />
+            <datalist id="markers">
+                <option value="0"></option>
+                <option value="1"></option>
+                <option value="2"></option>
+                <option value="3"></option>
+                <option value="4"></option>
+                <option value="5"></option>
+            </datalist>
 
             <div class="placeholder">
-                <!-- 6 is wtf, 8 doesn't load, 10 only gets the last 2 rows, 12 isn't valid -->
                 <!-- <img title="trees" src="/images/trees.png" class="" /> -->
                 <img title="trees-1" src="/images/trees-1.png" class="" />
                 <!-- <img title="trees-2" src="/images/trees-2.png" class="" /> -->
                 <img title="trees-4" src="/images/trees-4.png" class="" />
-                <img title="trees-5" src="/images/trees-5.png" class="" />
-                <img title="trees-6" src="/images/trees-6.png" class="active" />
+                <img title="trees-5" src="/images/trees-5.png" class="" /> <!-- miscategorized empty cell -->
+                <img title="trees-6" src="/images/trees-6.png" class="" /> <!-- use this one with the dummy solution -->
                 <img title="trees-7" src="/images/trees-7.png" class="" />
                 <img title="trees-8" src="/images/trees-8.png" class="" />
                 <!-- <img title="trees-9" src="/images/trees-9.png" class="" /> -->
@@ -73,8 +83,17 @@
                 <img title="trees-11" src="/images/trees-11.png" class="" />
                 <img title="trees-13" src="/images/trees-13.png" class="" />
                 <img title="trees-14" src="/images/trees-14.png" class="" />
-                <img title="trees-15" src="/images/trees-15.png" class="" />
-                <img title="trees-15" src="/images/trees-16.png" class="" />
+                <img title="trees-15" src="/images/trees-15.png" class="" /> <!-- lots of ? -->
+                <img title="trees-16" src="/images/trees-16.png" class="" />
+
+                <img title="trees-20" src="/images/trees-20.png" class="" />
+                <img title="trees-19" src="/images/trees-19.png" class="" />
+                <img title="trees-21" src="/images/trees-21.png" class="" />
+                <img title="trees-22" src="/images/trees-22.png" class="" />
+
+                <img title="trees-23" src="/images/trees-23.png" class="active" />
+                <img title="trees-24" src="/images/trees-24.png" class="" />
+                <img title="trees-25" src="/images/trees-25.png" class="" />
             </div>
 
             <img id="imageSrc" alt="No Image" />

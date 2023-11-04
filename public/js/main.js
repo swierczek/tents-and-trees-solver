@@ -19,8 +19,10 @@ let horizontalLines = [];
 
 let slider1Val = 0;
 let slider2Val = 0;
+let slider3Val = 0;
 
-let ocr = true;
+let ocr = false;
+let fakingOutput = false;
 
 let statuses = [];
 
@@ -52,18 +54,47 @@ var onOpenCvReady = function() {
     imgElement.src = activeImage.src;
 
     let slider1 = document.querySelector('#slider1');
-    slider1.addEventListener('change', function(e) {
-        slider1Val = parseInt(this.value);
-        // console.log('new slider1 value: ', slider1Val);
-        processImage();
-    });
+    if (slider1) {
+        slider1.addEventListener('change', function(e) {
+            slider1Val = parseInt(this.value);
+            // console.log('new slider1 value: ', slider1Val);
+            processImage();
+        });
+    }
 
     let slider2 = document.querySelector('#slider2');
-    slider2.addEventListener('change', function(e) {
-        slider2Val = parseInt(this.value);
-        // console.log('new slider2 value: ', slider2Val);
-        processImage();
-    })
+    if (slider2) {
+        slider2.addEventListener('change', function(e) {
+            slider2Val = parseInt(this.value);
+            // console.log('new slider2 value: ', slider2Val);
+            processImage();
+        });
+    }
+
+    let slider3 = document.querySelector('#slider3');
+    if (slider3) {
+        slider3.value = 3; // reset it on page load
+        slider3Val = slider3.value;
+        slider3.addEventListener('change', function(e) {
+            slider3Val = parseInt(this.value);
+            // console.log('new slider3 value: ', slider2Val);
+            updateStatus('');
+            updateStatus('Grid return level adjusted...');
+            processImage();
+        });
+    }
+
+    let ocrCheckbox = document.querySelector('#ocr-checkbox');
+    if (ocrCheckbox) {
+        ocrCheckbox.checked = true; // reset it on page load
+        ocr = ocrCheckbox.checked;
+        ocrCheckbox.addEventListener('change', function(e) {
+            ocr = ocrCheckbox.checked;
+            updateStatus('');
+            updateStatus('OCR ' + (ocr ? 'enabled' : 'disabled') + ', reprocessing...');
+            processImage();
+        });
+    }
 
     processImage();
 }
@@ -87,8 +118,10 @@ function processImage() {
     textarea.setAttribute('style', 'display:none');
     textarea.value = '';
 
-    let output = document.querySelector('#puzzleSolution');
-    output.innerText = '';
+    if (!fakingOutput) {
+        let output = document.querySelector('#puzzleSolution');
+        output.innerText = '';
+    }
 
     let ocrPlaceholders = document.querySelectorAll('.ocr-placeholder');
     ocrPlaceholders.forEach((canvas) => {
@@ -102,8 +135,13 @@ function processImage() {
     src = detectGrid(src);
 
     cv.imshow('canvasOutput', src);
-    // dst.delete();
+
     src.delete();
+
+    // to fake the solution image output (with trees-6)
+    if (fakingOutput) {
+        displaySolutionGrid(JSON.parse(document.querySelector('#puzzleSolution').innerText));
+    }
 }
 
 function imageMetadata(src) {
@@ -134,11 +172,7 @@ function cropGrid(src) {
     let leftCrop = bw.size().width / 2;
     let rightCrop = bw.size().width / 2;
 
-    // https://docs.opencv.org/3.4/d5/daa/tutorial_js_contours_begin.html
-    let contours = new cv.MatVector();
-    let hierarchy = new cv.Mat();
-    // https://docs.opencv.org/3.4/d3/dc0/group__imgproc__shape.html#ga819779b9857cc2f8601e6526a3a5bc71
-    cv.findContours(bw, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    let contours = findContours(bw);
 
     // find all of the bounding rectangles to find where objects are
     for (let i = 0; i < contours.size(); ++i) {
@@ -170,9 +204,17 @@ function cropGrid(src) {
     );
 
     contours.delete();
-    hierarchy.delete();
 
     return src.roi(rect);
+}
+
+function findContours(src) {
+    // https://docs.opencv.org/3.4/d5/daa/tutorial_js_contours_begin.html
+    let contours = new cv.MatVector();
+    // https://docs.opencv.org/3.4/d3/dc0/group__imgproc__shape.html#ga819779b9857cc2f8601e6526a3a5bc71
+    cv.findContours(src, contours, new cv.Mat(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    return contours;
 }
 
 /**
@@ -223,22 +265,40 @@ function blackAndWhite(src, threshold, blackBg = true) {
 function detectGrid(src) {
     let src2 = src.clone();
     let bw = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-    bw = blackAndWhite(src, 67);
+    bw = blackAndWhite(src, 40);
+
+    if (slider3Val === 0) {
+        return bw;
+    }
 
     // https://docs.opencv.org/3.4/d7/de1/tutorial_js_canny.html
     let edges = new cv.Mat();
     cv.Canny(bw, edges, slider1Val, slider2Val, apertureSize = 3);
 
+    if (slider3Val === 1) {
+        return edges;
+    }
+
     // dilate/dissolve to make the lines more prominent
     // https://docs.opencv.org/3.4/d4/d76/tutorial_js_morphological_ops.html
+    // works well for up to 10x10
     let M2 = cv.Mat.ones(5, 5, cv.CV_8U);
     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, M2);
 
+    if (slider3Val === 2) {
+        return edges;
+    }
+
     // https://docs.opencv.org/3.4/d3/de6/tutorial_js_houghlines.html
     let lines = new cv.Mat();
-    // cv.HoughLines(src, lines, 100, Math.PI / 180, 30, 0, 0, 0, Math.PI);
+    // works well up to 10x10
     cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold = 120, minLength = 450, maxGap = 300);
+    // TODO: find params that work for 13
+    // cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold = 120, minLength = 450, maxGap = 300);
+    // cv.HoughLines(src, lines, 100, Math.PI / 180, 30, 0, 0, 0, Math.PI);
     // cv.HoughLines(src, lines, 1, Math.PI / 180, 30, 0, 0, Math.PI / 4, Math.PI / 2);
+
+    console.log('lines', lines.rows);
 
     // determine lines
     // start with a line on the right
@@ -280,6 +340,9 @@ function detectGrid(src) {
     verticalLines = removeOutliers(verticalLines);
     horizontalLines = removeOutliers(horizontalLines);
 
+    console.log('verticalLines', verticalLines);
+    console.log('horizontalLines', horizontalLines);
+
     let gridTop = Math.min(...horizontalLines);
     let gridLeft = Math.min(...verticalLines);
     let gridBottom = Math.max(...horizontalLines);
@@ -299,7 +362,9 @@ function detectGrid(src) {
         cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
 
-    // let grid = [];
+    if (slider3Val === 3) {
+        return src;
+    }
 
     // now iterate over the lines to detect the cells
     for(y=0; y<horizontalLines.length-1; y++) {
@@ -374,6 +439,8 @@ function detectGrid(src) {
     let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
 
     updateStatus('Running OCR on ' + ocrCount + ' cells...');
+
+    // top row of numbers
     for (let x = 0; x < verticalLines.length-1; x++) {
         let numRect = new cv.Rect(
             verticalLines[x],
@@ -382,20 +449,18 @@ function detectGrid(src) {
             gridTop
         );
 
-        // let point1 = new cv.Point(numRect.x, numRect.y);
-        // let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
-        // let rectangleColor = new cv.Scalar(255, 0, 0, 255);
-        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+        // draw rectangle around number for debugging purposes
+        // drawRectangle(src, numRect)
 
         let cell = src.roi(numRect);
         // for OCR we want white bg
         cell = blackAndWhite(cell, 50, false);
 
-        // tesseract it!
-        let result = findText(cell, 'col-' + x);
+        let result = getResult(cell, 'col-' + x);
         results.push(result);
     }
 
+    // left column of numbers
     for (let y = 0; y < horizontalLines.length-1; y++) {
         let numRect = new cv.Rect(
             0,
@@ -404,17 +469,14 @@ function detectGrid(src) {
             horizontalLines[y+1] - horizontalLines[y]
         );
 
-        // let point1 = new cv.Point(numRect.x, numRect.y);
-        // let point2 = new cv.Point(numRect.x + numRect.width, numRect.y + numRect.height);
-        // let rectangleColor = new cv.Scalar(255, 0, 0, 255);
-        // cv.rectangle(src, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+        // draw rectangle around number for debugging purposes
+        // drawRectangle(src, numRect)
 
         let cell = src.roi(numRect);
         // for OCR we want white bg
         cell = blackAndWhite(cell, 50, false);
 
-        // tesseract it!
-        let result = findText(cell, 'row-' + y);
+        let result = getResult(cell, 'row-' + y);
         results.push(result);
     }
 
@@ -440,62 +502,139 @@ function detectGrid(src) {
     return src;
 }
 
+function drawRectangle(src, rect, color) {
+    let point1 = new cv.Point(rect.x, rect.y);
+    let point2 = new cv.Point(rect.x + rect.width, rect.y + rect.height);
+
+    if (typeof color === 'undefined') {
+        color = new cv.Scalar(255, 0, 0, 255);
+    }
+
+    cv.rectangle(src, point1, point2, color, 2, cv.LINE_AA, 0);
+}
+
+/**
+ * Check the # cell and determine if it contains a number or not.
+ * If it contains a number, send it to OCR, otherwise consider it "?"
+ *
+ * @param cell Black and white image of a single cell
+ * @param id Unique ID for the Canvas or Promise
+ */
+function getResult(cell, id) {
+    // Trim out 70% from all edges and then check if all pixels are black.
+    // If so, we can skip findText because it should be "?".
+    // Smaller values than this may create false-negatives because it could select only the empty center of 0.
+    // @todo: a bettter way would be to find the contours, then determine if any contours pass
+    //        through the ~center (or a 20% wide center area or something)
+    let percent = .3;
+    let centerRect = new cv.Rect(
+        cell.size().width * percent,
+        cell.size().height * percent,
+        cell.size().width * (1 - (percent * 2)), // *2 because we need to trim both the left and right
+        cell.size().height * (1 - (percent * 2)),
+    );
+
+    let center = cell.roi(centerRect);
+
+    // display this in a new canvas for debugging
+    let tempId = 'center-' + id;
+    let canvas = document.createElement('canvas');
+    canvas.setAttribute('class', 'center-placeholder');
+    canvas.setAttribute('id', tempId);
+    document.querySelector('body').append(canvas);
+    cv.imshow(tempId, center);
+
+    let colorSum = 0;
+    for (let i = 0; i < center.size().width; i++) {
+        for (let j = 0; j < center.size().height; j++) {
+            let filledPixel = parseInt(center.ucharPtr(i, j)[0]) < 255;
+            // console.log('pixel', pixel);
+
+            if (filledPixel) {
+                colorSum++;
+            }
+        }
+    }
+
+    if (colorSum === 0) {
+        console.log('skipping OCR for ' + id);
+        // don't bother sending to OCR!
+        let thenable = {
+          then(onFulfilled, onRejected) {
+            onFulfilled({
+              // The thenable is fulfilled with another thenable
+              then(onFulfilled, onRejected) {
+                onFulfilled({
+                    id: id,
+                    text: '?'
+                });
+              },
+            });
+          },
+        };
+
+        return Promise.resolve(thenable);
+    } else {
+        // tesseract it!
+        return findText(cell, id);
+    }
+}
+
 function displaySolutionGrid(results) {
-    let img = document.querySelector('#canvasOutput');
-    let src = cv.imread(img);
+    let src = cv.imread(document.querySelector('#canvasOutput'));
 
-    let tentImg = document.querySelector('#tent');
-    let imgSrc = cv.imread(tentImg);
+    let tentImg = cv.imread(document.querySelector('#tent'));
 
+    // manually overlay each tent image over the src
     results.forEach(function(item, index) {
         let x = parseInt(item.x);
         let y = parseInt(item.y);
 
-        /*
-            x=0, y=1 means:
-                left edge is verticalLines[0]
-                right edge is verticalLines[0+1]
-                top is horizontalLines[1]
-                bottom is horizontalLines[1+1]
-        */
-        let tent = new cv.Rect(
+        // resize the tent image
+        // https://docs.opencv.org/3.4/dd/d52/tutorial_js_geometric_transformations.html
+        let tentCopy = tentImg.clone();
+        let tentRect = new cv.Rect(
             verticalLines[x],
             horizontalLines[y],
             verticalLines[x+1] - verticalLines[x],
             horizontalLines[y+1] - horizontalLines[y]
         );
 
-        // resize the tent image
-        // https://docs.opencv.org/3.4/dd/d52/tutorial_js_geometric_transformations.html
-        imgSrc2 = imgSrc.clone();
-        let dsize = new cv.Size(tent.width, tent.height);
-        cv.resize(imgSrc2, imgSrc2, dsize, 0, 0, cv.INTER_AREA);
+        let dsize = new cv.Size(tentRect.width, tentRect.height);
+        cv.resize(tentCopy, tentCopy, dsize, 0, 0, cv.INTER_AREA);
+
+        // https://docs.opencv.org/3.4/dd/d4d/tutorial_js_image_arithmetics.html
+        for(i=0; i<tentCopy.size().height; i++) {
+            for(j=0; j<tentCopy.size().width; j++) {
+                src.ucharPtr(i + horizontalLines[y], j + verticalLines[x])[0] = tentCopy.ucharPtr(i, j)[0]; // R
+                src.ucharPtr(i + horizontalLines[y], j + verticalLines[x])[1] = tentCopy.ucharPtr(i, j)[1]; // G
+                src.ucharPtr(i + horizontalLines[y], j + verticalLines[x])[2] = tentCopy.ucharPtr(i, j)[2]; // B
+            }
+        }
+
+        tentCopy.delete();
+
+        // alternate attempt below (blend instead of overwriting individual pixels)
 
         // add padding to make the tent image the same size as src
         // https://docs.opencv.org/3.4/de/d06/tutorial_js_basic_ops.html
-        let size = [
-            horizontalLines[y], // top
-            src.size().height - horizontalLines[y+1], // bottom
-            verticalLines[x], // left
-            src.size().width - verticalLines[x+1], // right
-        ];
-
-        cv.copyMakeBorder(imgSrc2, imgSrc2, ...size, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
+        // let size = [
+        //     horizontalLines[y], // top
+        //     src.size().height - horizontalLines[y+1], // bottom
+        //     verticalLines[x], // left
+        //     src.size().width - verticalLines[x+1], // right
+        // ];
+        // cv.copyMakeBorder(imgSrc2, imgSrc2, ...size, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
 
         // https://docs.opencv.org/3.4/d5/df3/tutorial_js_trackbar.html
-        // cv.addWeighted( imgSrc2, 1, src, 1, 0.0, src, -1);
+        // cv.addWeighted( imgSrc2, .5, src, .5, 0.0, src, -1);
 
-        // https://docs.opencv.org/3.4/dd/d4d/tutorial_js_image_arithmetics.html
-        // https://docs.opencv.org/3.4/d2/de8/group__core__array.html#gafafb2513349db3bcff51f54ee5592a19
-        cv.add(src, imgSrc2, src);
-
-        imgSrc2.delete();
     });
 
     cv.imshow('canvasOutput', src);
 
     src.delete();
-    imgSrc.delete();
+    tentImg.delete();
 }
 
 function removeOutliers(lines) {
@@ -506,7 +645,7 @@ function removeOutliers(lines) {
     lines = lines.reverse();
 
     // sorted biggest to smallest
-    // console.log('sorted', lines);
+    console.log('sorted', lines);
 
     // the first 3 will give us a good sense of distance
     let averageDistance = 0;
@@ -515,11 +654,12 @@ function removeOutliers(lines) {
     }
     averageDistance = averageDistance / 3;
 
-    // console.log('average', averageDistance);
+    console.log('average', averageDistance);
 
     for(var i = lines.length - 1; i >= 0; i--){
         let diff = Math.abs(lines[i] - lines[i-1]);
 
+        // account for a 20% difference in either direction
         if (diff < (averageDistance * .8) || diff > (averageDistance * 1.2)) {
             // remove this item
             lines.splice(i, 1);
@@ -595,32 +735,34 @@ function printInput(cols, rows, grid) {
     textarea.setAttribute('cols', cols.length+5);
     textarea.setAttribute('style', 'display:block');
 
-    // console.log(rows);
-    // console.log(cols);
-    // console.log(grid);
-
     let input = ' ' + cols.join('') + "\n";
     for (y=0; y < rows.length; y++) {
         input += rows[y] + grid[y] + "\n";
     }
     textarea.value = input;
 
-    updateStatus('Sending to solver...');
-    let form = document.querySelector('form');
+    if (slider3Val === 5) {
+        updateStatus('Sending to solver...');
+        let form = document.querySelector('form');
 
-    fetch(
-        form.action,
-        {
-            method:'post',
-            body: new FormData(form)
-        }
-    ).then((response) => {
-        return response.json();
-    }).then((response) => {
-        updateStatus('Complete!');
-        document.querySelector('#puzzleSolution').innerHTML = response;
-        displaySolutionGrid(response);
-    });
+        fetch(
+            form.action,
+            {
+                method:'post',
+                body: new FormData(form)
+            }
+        ).then((response) => {
+            return response.json();
+        }).then((response) => {
+            console.log('response', response);
+
+            updateStatus('Complete!');
+            document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response);
+
+            updateStatus('Displaying results...');
+            displaySolutionGrid(response);
+        });
+    }
 }
 
 function updateStatus(status) {
