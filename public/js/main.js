@@ -16,13 +16,16 @@ let imgElement = document.getElementById('imageSrc');
 let grid = [];
 let verticalLines = [];
 let horizontalLines = [];
+let gridTop = 0;
+let gridLeft = 0;
+let gridBottom = 0;
+let gridRight = 0;
 
-let slider1Val = 0;
-let slider2Val = 0;
-let slider3Val = 0;
+let bwThreshold = 0;
+let houghThreshold = 0;
+let processingDepth = 0;
 
-let ocr = false;
-let fakingOutput = false;
+let ocr = true;
 
 let statuses = [];
 
@@ -34,8 +37,8 @@ var onOpenCvReady = function() {
     let placeholders = document.querySelectorAll('.placeholder img');
     placeholders.forEach(function(item, index) {
         item.addEventListener('click', function(e) {
-            updateStatus('');
-            updateStatus('New image clicked...');
+            // updateStatus('');
+            // updateStatus('New image clicked...');
 
             let active = document.querySelector('.placeholder img.active');
             if (active) {
@@ -53,54 +56,96 @@ var onOpenCvReady = function() {
 
     imgElement.src = activeImage.src;
 
-    let slider1 = document.querySelector('#slider1');
-    if (slider1) {
-        slider1.addEventListener('change', function(e) {
-            slider1Val = parseInt(this.value);
-            // console.log('new slider1 value: ', slider1Val);
+    initSlider('bwThreshold', 56);
+    initSlider('houghThreshold', 95);
+
+    let depthSlider = document.querySelector('#depth');
+    if (depthSlider) {
+        depthSlider.value = 3; // reset it on page load (show the grid)
+        processingDepth = parseInt(depthSlider.value);
+        depthSlider.addEventListener('input', function(e) {
+            event.target.previousElementSibling.innerText = event.target.value;
+            processingDepth = parseInt(this.value);
             processImage();
         });
     }
 
-    let slider2 = document.querySelector('#slider2');
-    if (slider2) {
-        slider2.addEventListener('change', function(e) {
-            slider2Val = parseInt(this.value);
-            // console.log('new slider2 value: ', slider2Val);
+    let largeCells = document.querySelector('#large-cells');
+    if (largeCells) {
+        largeCells.addEventListener('click', function(e) {
+            bwThreshold = 56;
+            bwSlider = document.querySelector('#bwThreshold');
+            bwSlider.value = bwThreshold;
+            bwSlider.closest('label').querySelector('span').innerText = bwThreshold;
+
+            houghThreshold = 74;
+            houghSlider = document.querySelector('#houghThreshold');
+            houghSlider.value = houghThreshold;
+            houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
+
             processImage();
         });
     }
 
-    let slider3 = document.querySelector('#slider3');
-    if (slider3) {
-        slider3.value = 5; // reset it on page load
-        slider3Val = parseInt(slider3.value);
-        slider3.addEventListener('change', function(e) {
-            slider3Val = parseInt(this.value);
-            // console.log('new slider3 value: ', slider2Val);
-            updateStatus('');
-            updateStatus('Grid return level adjusted...');
+    let smallCells = document.querySelector('#small-cells');
+    if (smallCells) {
+        smallCells.addEventListener('click', function(e) {
+            bwThreshold = 46;
+            bwSlider = document.querySelector('#bwThreshold');
+            bwSlider.value = bwThreshold;
+            bwSlider.closest('label').querySelector('span').innerText = bwThreshold;
+
+            houghThreshold = 87;
+            houghSlider = document.querySelector('#houghThreshold');
+            houghSlider.value = houghThreshold;
+            houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
+
             processImage();
         });
     }
 
-    let ocrCheckbox = document.querySelector('#ocr-checkbox');
-    if (ocrCheckbox) {
-        ocrCheckbox.checked = true; // reset it on page load
-        ocr = ocrCheckbox.checked;
-        ocrCheckbox.addEventListener('change', function(e) {
-            ocr = ocrCheckbox.checked;
-            updateStatus('');
-            updateStatus('OCR ' + (ocr ? 'enabled' : 'disabled') + ', reprocessing...');
-            processImage();
-        });
+    let solveIt = document.querySelector('#solve-it');
+    if (solveIt) {
+        solveIt.addEventListener('click', function(e) {
+            if (processingDepth != 4) {
+                // set processingDepth to 4 so the grid detection fully runs
+                let depthSlider = document.querySelector('#depth');
+                depthSlider.value = 4;
+                depthSlider.dispatchEvent(new Event("input"));
+            }
+
+            let src = cv.imread('canvasOutput');
+            runOcr(src);
+        })
     }
 
     processImage();
 }
 
-function processImage() {
-    updateStatus('Processing image...');
+function initSlider(id, initVal) {
+    let slider = document.querySelector('#'+id);
+    if (slider) {
+        slider.value = initVal; // page load default
+        slider.addEventListener('input', function(e) {
+            event.target.previousElementSibling.innerText = event.target.value;
+
+            let value = parseInt(this.value);
+
+            if (id == 'bwThreshold') {
+                bwThreshold = value;
+            } else if (id == 'houghThreshold') {
+                houghThreshold = value;
+
+            }
+            processImage();
+        });
+        slider.dispatchEvent(new Event("input"));
+    }
+}
+
+
+var processImage = function() {
+    // updateStatus('Processing image...');
 
     grid = [];
     verticalLines = [];
@@ -110,39 +155,29 @@ function processImage() {
     let form = document.querySelector('form');
 
     let src = cv.imread(imgElement);
-    // let dst = new cv.Mat();
-
-    // imageMetadata(src);
 
     let textarea = document.querySelector('#puzzleInput');
     textarea.setAttribute('style', 'display:none');
     textarea.value = '';
 
-    if (!fakingOutput) {
-        let output = document.querySelector('#puzzleSolution');
-        output.innerText = '';
-    }
+    let output = document.querySelector('#puzzleSolution');
+    output.innerText = '';
 
     let ocrPlaceholders = document.querySelectorAll('.ocr-placeholder');
     ocrPlaceholders.forEach((canvas) => {
         canvas.remove();
     });
 
-    updateStatus('Cropping grid...');
+    // updateStatus('Cropping grid...');
     src = cropGrid(src);
 
-    updateStatus('Detecting cells...');
+    // updateStatus('Detecting cells...');
     src = detectGrid(src);
 
     cv.imshow('canvasOutput', src);
 
     src.delete();
-
-    // to fake the solution image output (with trees-6)
-    if (fakingOutput) {
-        displaySolutionGrid(JSON.parse(document.querySelector('#puzzleSolution').innerText));
-    }
-}
+};
 
 function imageMetadata(src) {
     console.log('image width: ' + src.cols + '\n' +
@@ -265,40 +300,47 @@ function blackAndWhite(src, threshold, blackBg = true) {
 function detectGrid(src) {
     let src2 = src.clone();
     let bw = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-    bw = blackAndWhite(src, 40);
+    // 56 works for up to 17x17
+    bw = blackAndWhite(src, bwThreshold);
+    // console.log('bwThreshold', bwThreshold);
 
-    if (slider3Val === 0) {
+    if (processingDepth === 0) {
         return bw;
     }
 
     // https://docs.opencv.org/3.4/d7/de1/tutorial_js_canny.html
     let edges = new cv.Mat();
-    cv.Canny(bw, edges, slider1Val, slider2Val, apertureSize = 3);
+    // the thresholds here don't really seem to matter much at all
+    cv.Canny(bw, edges, 50, 100, apertureSize = 3);
 
-    if (slider3Val === 1) {
+    if (processingDepth === 1) {
         return edges;
     }
 
     // dilate/dissolve to make the lines more prominent
     // https://docs.opencv.org/3.4/d4/d76/tutorial_js_morphological_ops.html
-    // works well for up to 10x10
     let M2 = cv.Mat.ones(5, 5, cv.CV_8U);
     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, M2);
 
-    if (slider3Val === 2) {
+    if (processingDepth === 2) {
         return edges;
     }
 
     // https://docs.opencv.org/3.4/d3/de6/tutorial_js_houghlines.html
     let lines = new cv.Mat();
     // works well up to 10x10
-    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold = 120, minLength = 450, maxGap = 300);
-    // TODO: find params that work for 13
+    // threshold of 120 misses a couple
+    // 95 gets others, but it seems like this might need to be dynamic :/
+
+    // console.log('houghThreshold', houghThreshold);
+    //
+    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, houghThreshold, minLength = 450, maxGap = 300);
+    // TODO: find params that work for 13+
     // cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold = 120, minLength = 450, maxGap = 300);
     // cv.HoughLines(src, lines, 100, Math.PI / 180, 30, 0, 0, 0, Math.PI);
     // cv.HoughLines(src, lines, 1, Math.PI / 180, 30, 0, 0, Math.PI / 4, Math.PI / 2);
 
-    console.log('lines', lines.rows);
+    // console.log('lines', lines.rows);
 
     // determine lines
     // start with a line on the right
@@ -340,13 +382,13 @@ function detectGrid(src) {
     verticalLines = removeOutliers(verticalLines);
     horizontalLines = removeOutliers(horizontalLines);
 
-    console.log('verticalLines', verticalLines);
-    console.log('horizontalLines', horizontalLines);
+    // console.log('verticalLines', verticalLines);
+    // console.log('horizontalLines', horizontalLines);
 
-    let gridTop = Math.min(...horizontalLines);
-    let gridLeft = Math.min(...verticalLines);
-    let gridBottom = Math.max(...horizontalLines);
-    let gridRight = Math.max(...verticalLines);
+    gridTop = Math.min(...horizontalLines);
+    gridLeft = Math.min(...verticalLines);
+    gridBottom = Math.max(...horizontalLines);
+    gridRight = Math.max(...verticalLines);
 
     // then draw the lines as a gut check
     verticalLines.forEach(function(item, index) {
@@ -362,7 +404,7 @@ function detectGrid(src) {
         cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
 
-    if (slider3Val === 3) {
+    if (processingDepth === 3) {
         return src;
     }
 
@@ -426,14 +468,12 @@ function detectGrid(src) {
         grid.push(row.join(''));
     }
 
-    console.log('grid', grid);
+    console.log('grid here', grid);
 
-    // return early if we're not running OCR
-    if (!ocr) {
-        updateStatus('OCR disabled, returning image');
-        return src;
-    }
+    return src;
+}
 
+function runOcr(src) {
     let results = [];
 
     let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
@@ -457,6 +497,7 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         let result = getResult(cell, 'col-' + x);
+        console.log('top-result', result);
         results.push(result);
     }
 
@@ -477,8 +518,11 @@ function detectGrid(src) {
         cell = blackAndWhite(cell, 50, false);
 
         let result = getResult(cell, 'row-' + y);
+        console.log('left-result', result);
         results.push(result);
     }
+
+    console.log('results', results);
 
     /**
      * Split the results into separate cols/rows and pass to print function
@@ -498,8 +542,6 @@ function detectGrid(src) {
         updateStatus('Printing grid...');
         printInput(colNums, rowNums, grid);
     });
-
-    return src;
 }
 
 function drawRectangle(src, rect, color) {
@@ -557,13 +599,16 @@ function getResult(cell, id) {
     }
 
     if (colorSum === 0) {
-        console.log('skipping OCR for ' + id);
+        // console.log('skipping OCR for ' + id);
         // don't bother sending to OCR!
         let thenable = {
           then(onFulfilled, onRejected) {
             onFulfilled({
               // The thenable is fulfilled with another thenable
               then(onFulfilled, onRejected) {
+                completedOCRCount++;
+                updateStatus('Single OCR number complete: ' + completedOCRCount);
+
                 onFulfilled({
                     id: id,
                     text: '?'
@@ -576,6 +621,8 @@ function getResult(cell, id) {
         return Promise.resolve(thenable);
     } else {
         // tesseract it!
+        console.log('cell', cell);
+        console.log('id', id);
         return findText(cell, id);
     }
 }
@@ -645,7 +692,7 @@ function removeOutliers(lines) {
     lines = lines.reverse();
 
     // sorted biggest to smallest
-    console.log('sorted', lines);
+    // console.log('sorted', lines);
 
     // the first 3 will give us a good sense of distance
     let averageDistance = 0;
@@ -654,15 +701,25 @@ function removeOutliers(lines) {
     }
     averageDistance = averageDistance / 3;
 
-    console.log('average', averageDistance);
+    // console.log('average', averageDistance);
 
-    for(var i = lines.length - 1; i >= 0; i--){
+    for(var i = lines.length - 1; i >= 0; i--) {
+        let keys = Object.keys(lines);
+        // console.log('keys', keys);
+
+        // console.log('comparing', lines[i], lines[i-1]);
+
         let diff = Math.abs(lines[i] - lines[i-1]);
 
+        // console.log('diff', diff);
+        // console.log('avgMin', averageDistance * .8);
+        // console.log('avgMax', averageDistance * 1.2);
+
         // account for a 20% difference in either direction
-        if (diff < (averageDistance * .8) || diff > (averageDistance * 1.2)) {
+        if (diff < (averageDistance * .8)) {
             // remove this item
             lines.splice(i, 1);
+            // console.log('spliced lines', lines);
             // loop using this line again
             i++;
         }
@@ -699,6 +756,7 @@ async function findText(src, id) {
     });
     // await worker.terminate(); // maybe?
 
+    console.log('creating worker');
     // return the promise
     return await worker.recognize(document.getElementById(id))
         .then(function(result) {
@@ -735,35 +793,37 @@ function printInput(cols, rows, grid) {
     textarea.setAttribute('cols', cols.length+5);
     textarea.setAttribute('style', 'display:block');
 
+    console.log('rows', rows);
+    console.log('cols', cols);
+    console.log('grid', grid);
+
     let input = ' ' + cols.join('') + "\n";
     for (y=0; y < rows.length; y++) {
         input += rows[y] + grid[y] + "\n";
     }
     textarea.value = input;
 
-    if (slider3Val === 5) {
-        updateStatus('Sending to solver...');
-        let form = document.querySelector('form');
+    updateStatus('Sending to solver...');
+    let form = document.querySelector('form');
 
-        fetch(
-            form.action,
-            {
-                method:'post',
-                body: new FormData(form)
-            }
-        ).then((response) => {
-            return response.json();
-        }).then((response) => {
-            console.log('response', response);
+    fetch(
+        form.action,
+        {
+            method:'post',
+            body: new FormData(form)
+        }
+    ).then((response) => {
+        return response.json();
+    }).then((response) => {
+        // console.log('response', response);
 
-            updateStatus('Complete!');
-            updateStatus(response.success ? 'Solved!' : 'Not solved :(');
-            document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
+        updateStatus('Complete!');
+        updateStatus(response.success ? 'Solved!' : 'Not solved :(');
+        document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
 
-            updateStatus('Displaying results...');
-            displaySolutionGrid(response.tents);
-        });
-    }
+        updateStatus('Displaying results...');
+        displaySolutionGrid(response.tents);
+    });
 }
 
 function updateStatus(status) {
@@ -775,3 +835,22 @@ function updateStatus(status) {
 
     document.getElementById('status').innerHTML = statuses.join('<br>');
 }
+
+// Returns a function, that, as long as it continues to be invoked, will not
+// be triggered. The function will be called after it stops being called for
+// N milliseconds. If `immediate` is passed, trigger the function on the
+// leading edge, instead of the trailing.
+function debounce(func, wait, immediate) {
+    var timeout;
+    return function() {
+        var context = this, args = arguments;
+        var later = function() {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+};
