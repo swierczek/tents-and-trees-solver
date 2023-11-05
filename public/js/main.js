@@ -37,7 +37,7 @@ var onOpenCvReady = function() {
     let placeholders = document.querySelectorAll('.placeholder img');
     placeholders.forEach(function(item, index) {
         item.addEventListener('click', function(e) {
-            // updateStatus('');
+            updateStatus('');
             // updateStatus('New image clicked...');
 
             let active = document.querySelector('.placeholder img.active');
@@ -83,6 +83,7 @@ var onOpenCvReady = function() {
             houghSlider.value = houghThreshold;
             houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
 
+            updateStatus('');
             processImage();
         });
     }
@@ -100,6 +101,7 @@ var onOpenCvReady = function() {
             houghSlider.value = houghThreshold;
             houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
 
+            updateStatus('');
             processImage();
         });
     }
@@ -404,6 +406,23 @@ function detectGrid(src) {
         cv.line(src, startPoint, endPoint, new cv.Scalar(255, 255, 255, 255), 3);
     });
 
+    let vGaps = getGaps(verticalLines);
+    let hGaps = getGaps(horizontalLines);
+
+    let vStdDev = getStandardDeviation(vGaps);
+    let hStdDev = getStandardDeviation(hGaps);
+
+    console.log('vsd', vStdDev);
+    console.log('hsd', hStdDev);
+
+    updateStatus('Grid appears to be ' + (verticalLines.length-1) + 'x' + (horizontalLines.length-1));
+    if (
+        verticalLines.length-1 < 5 || horizontalLines.length-1 < 5
+        || vStdDev > 10 || hStdDev > 10
+    ) {
+        updateStatus('This might not be right or as accurate as it could be. Click the relevant size button to reprocess with different parameters.');
+    }
+
     if (processingDepth === 3) {
         return src;
     }
@@ -471,6 +490,16 @@ function detectGrid(src) {
     console.log('grid here', grid);
 
     return src;
+}
+
+function getGaps(lines) {
+    let gaps = [];
+
+    for(let i=0; i<lines.length-1; i++) {
+        gaps.push(Math.abs(lines[i] - lines[i+1]));
+    }
+
+    return gaps;
 }
 
 function runOcr(src) {
@@ -704,11 +733,6 @@ function removeOutliers(lines) {
     // console.log('average', averageDistance);
 
     for(var i = lines.length - 1; i >= 0; i--) {
-        let keys = Object.keys(lines);
-        // console.log('keys', keys);
-
-        // console.log('comparing', lines[i], lines[i-1]);
-
         let diff = Math.abs(lines[i] - lines[i-1]);
 
         // console.log('diff', diff);
@@ -727,6 +751,23 @@ function removeOutliers(lines) {
 
     // return smallest to biggest
     lines = lines.reverse();
+
+    // check if there are any gaps larger than avg * 1.7, and if so, add a line
+    // this is a quick fix for lower resolution images that might have very thin lines,
+    // so some get missed with the normal grid detection logic
+    for (let i = 0; i < lines.length-1; i++) {
+        let diff = Math.abs(lines[i] - lines[i+1]);
+
+        if (diff > averageDistance * 1.7) {
+            // add line at this coordinate
+            let newLine = Math.round(lines[i] + averageDistance);
+            lines.splice(i, 0, newLine);
+            // go to the next item
+            i++;
+        }
+    }
+
+    console.log('lines', lines);
 
     return lines;
 }
@@ -854,3 +895,9 @@ function debounce(func, wait, immediate) {
         if (callNow) func.apply(context, args);
     };
 };
+
+function getStandardDeviation(array) {
+  const n = array.length
+  const mean = array.reduce((a, b) => a + b) / n
+  return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
+}
