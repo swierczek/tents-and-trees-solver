@@ -412,8 +412,8 @@ function detectGrid(src) {
     let vStdDev = getStandardDeviation(vGaps);
     let hStdDev = getStandardDeviation(hGaps);
 
-    console.log('vsd', vStdDev);
-    console.log('hsd', hStdDev);
+    // console.log('vsd', vStdDev);
+    // console.log('hsd', hStdDev);
 
     updateStatus('Grid appears to be ' + (verticalLines.length-1) + 'x' + (horizontalLines.length-1));
     if (
@@ -526,7 +526,7 @@ function runOcr(src) {
         cell = blackAndWhite(cell, 50, false);
 
         let result = getResult(cell, 'col-' + x);
-        console.log('top-result', result);
+        // console.log('top-result', result);
         results.push(result);
     }
 
@@ -547,7 +547,7 @@ function runOcr(src) {
         cell = blackAndWhite(cell, 50, false);
 
         let result = getResult(cell, 'row-' + y);
-        console.log('left-result', result);
+        // console.log('left-result', result);
         results.push(result);
     }
 
@@ -650,8 +650,8 @@ function getResult(cell, id) {
         return Promise.resolve(thenable);
     } else {
         // tesseract it!
-        console.log('cell', cell);
-        console.log('id', id);
+        // console.log('cell', cell);
+        // console.log('id', id);
         return findText(cell, id);
     }
 }
@@ -767,7 +767,7 @@ function removeOutliers(lines) {
         }
     }
 
-    console.log('lines', lines);
+    // console.log('lines', lines);
 
     return lines;
 }
@@ -787,34 +787,48 @@ async function findText(src, id) {
 
     cv.imshow(id, src);
 
-    // configure the OCR worker
-    // https://github.com/naptha/tesseract.js/blob/HEAD/docs/api.md#create-worker
-    const { createWorker } = Tesseract;
-    const worker = await createWorker('eng');
-    await worker.setParameters({
-        tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: 8 // PSM_SINGLE_WORD
-    });
-    // await worker.terminate(); // maybe?
-
     console.log('creating worker');
-    // return the promise
-    return await worker.recognize(document.getElementById(id))
-        .then(function(result) {
-            completedOCRCount++;
-            updateStatus('Single OCR number complete: ' + completedOCRCount);
 
-            // if it's empty, return '?'
-            let number = parseInt(result.data.text);
-            if (isNaN(number)) {
-                number = '?';
-            }
-
-            return {
-                id: id,
-                text: number
-            }
+    try {
+        // configure the OCR worker
+        // https://github.com/naptha/tesseract.js/blob/HEAD/docs/api.md#create-worker
+        // const { createWorker } = Tesseract;
+        const worker = await Tesseract.createWorker('eng', 1, {
+            tessedit_char_whitelist: '0123456789',
+            tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
+            logger: m => console.log('tesseract logger', m)
+            // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
         });
+
+        // await worker.terminate(); // maybe?
+
+        console.log('creating worker');
+        // return the promise
+        return await worker.recognize(document.getElementById(id))
+            .then(function(result) {
+                completedOCRCount++;
+                updateStatus('Single OCR number complete: ' + completedOCRCount);
+
+                // if it's empty, return '?'
+                let number = parseInt(result.data.text);
+                if (isNaN(number)) {
+                    number = '?';
+                }
+
+                return {
+                    id: id,
+                    text: number
+                }
+            })
+            .catch((err) => {
+                console.log('tesseract error', err);
+            })
+            .finally(() => {
+                console.log('Tesseract completed');
+            });
+    } catch (error) {
+        console.log('error', error);
+    }
 }
 
 // blur to help with edge detection and combat image compression?
