@@ -31,6 +31,26 @@ let statuses = [];
 
 let completedOCRCount = 0;
 
+var worker;
+
+var onTesseractReady = function() {
+    (async () => {
+        // worker = await Tesseract.createWorker('eng');
+        // const { data: { text } } = await worker.recognize('https://tesseract.projectnaptha.com/img/eng_bw.png');
+        // console.log(text);
+        // await worker.terminate();
+
+        worker = await Tesseract.createWorker('eng', 1, {
+            tessedit_char_whitelist: '0123456789',
+            tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
+            logger: m => console.log('tesseract logger', m)
+            // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
+        });
+
+        console.log(worker);
+    })();
+}
+
 var onOpenCvReady = function() {
     updateStatus('OpenCV.js is ready');
 
@@ -652,6 +672,7 @@ function getResult(cell, id) {
         // tesseract it!
         // console.log('cell', cell);
         // console.log('id', id);
+        console.log('findText', id);
         return findText(cell, id);
     }
 }
@@ -787,25 +808,28 @@ async function findText(src, id) {
 
     cv.imshow(id, src);
 
-    console.log('creating worker');
+    // console.log('creating worker');
 
     try {
         // configure the OCR worker
         // https://github.com/naptha/tesseract.js/blob/HEAD/docs/api.md#create-worker
         // const { createWorker } = Tesseract;
-        const worker = await Tesseract.createWorker('eng', 1, {
-            tessedit_char_whitelist: '0123456789',
-            tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
-            logger: m => console.log('tesseract logger', m)
-            // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
-        });
+        // const worker = await Tesseract.createWorker('eng', 1, {
+        //     tessedit_char_whitelist: '0123456789',
+        //     tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
+        //     logger: m => console.log('tesseract logger', m)
+        //     // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
+        // });
 
         // await worker.terminate(); // maybe?
 
-        console.log('creating worker');
+        // console.log('creating worker');
+        // console.log('confirming worker', worker);
+
         // return the promise
         return await worker.recognize(document.getElementById(id))
             .then(function(result) {
+                console.log('result', result);
                 completedOCRCount++;
                 updateStatus('Single OCR number complete: ' + completedOCRCount);
 
@@ -814,6 +838,8 @@ async function findText(src, id) {
                 if (isNaN(number)) {
                     number = '?';
                 }
+
+                console.log('returning');
 
                 return {
                     id: id,
