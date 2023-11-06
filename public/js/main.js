@@ -479,13 +479,13 @@ function detectGrid(src) {
             );
 
             let cell = src2.roi(innerRect);
-            cell = blackAndWhite(cell, 120);
+            cell = blackAndWhite(cell, 70);
 
             // don't need to check every pixel...
             let avgColor = 0;
             let count = 0;
-            for (let i = 0; i < cell.size().width; i+=5) {
-                for (let j = 0; j < cell.size().height; j+=3) {
+            for (let i = 0; i < cell.size().width; i+=3) {
+                for (let j = 0; j < cell.size().height; j+=2) {
                     avgColor += parseInt(cell.ucharPtr(i, j));
                     count++;
                 }
@@ -498,8 +498,8 @@ function detectGrid(src) {
                 cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
             } else {
                 row.push('.');
-                let rectangleColor = new cv.Scalar(0, 255, 0, 255);
-                cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
+                // let rectangleColor = new cv.Scalar(0, 255, 0, 255);
+                // cv.rectangle(src, point3, point4, rectangleColor, 2, cv.LINE_AA, 0);
             }
         }
 
@@ -524,6 +524,7 @@ function getGaps(lines) {
 async function runOcr(src) {
     let rowNums = [];
     let colNums = [];
+    let padding = 6;
 
     let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
 
@@ -535,7 +536,7 @@ async function runOcr(src) {
             verticalLines[x],
             0,
             verticalLines[x+1] - verticalLines[x],
-            gridTop
+            gridTop - padding
         );
 
         // draw rectangle around number for debugging purposes
@@ -555,7 +556,7 @@ async function runOcr(src) {
         let numRect = new cv.Rect(
             0,
             horizontalLines[y],
-            gridLeft,
+            gridLeft - padding,
             horizontalLines[y+1] - horizontalLines[y]
         );
 
