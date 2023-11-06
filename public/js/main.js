@@ -42,6 +42,10 @@ async function onTesseractReady() {
         // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
     });
 
+    let solveButton = document.querySelector('#solve-it');
+    solveButton.removeAttribute('disabled');
+    solveButton.innerText = 'Grid looks correct - solve it!';
+
     console.log(worker);
 };
 
@@ -517,8 +521,9 @@ function getGaps(lines) {
     return gaps;
 }
 
-function runOcr(src) {
-    let results = [];
+async function runOcr(src) {
+    let rowNums = [];
+    let colNums = [];
 
     let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
 
@@ -540,9 +545,9 @@ function runOcr(src) {
         // for OCR we want white bg
         cell = blackAndWhite(cell, 50, false);
 
-        let result = getResult(cell, 'col-' + x);
+        let result = await getResult(cell, 'col-' + x);
         // console.log('top-result', result);
-        results.push(result);
+        colNums.push(result);
     }
 
     // left column of numbers
@@ -561,31 +566,15 @@ function runOcr(src) {
         // for OCR we want white bg
         cell = blackAndWhite(cell, 50, false);
 
-        let result = getResult(cell, 'row-' + y);
+        let result = await getResult(cell, 'row-' + y);
         // console.log('left-result', result);
-        results.push(result);
+        rowNums.push(result);
     }
 
-    console.log('results', results);
+    // console.log('cols', colNums);
+    // console.log('rows', rowNums);
 
-    /**
-     * Split the results into separate cols/rows and pass to print function
-     */
-    Promise.all(results).then((numbers) => {
-        let colNums = [];
-        let rowNums = [];
-
-        numbers.forEach((number) => {
-            if (number.id.indexOf('col') === 0) {
-                colNums.push(number.text);
-            } else {
-                rowNums.push(number.text);
-            }
-        });
-
-        updateStatus('Printing grid...');
-        printInput(colNums, rowNums, grid);
-    });
+    printInput(colNums, rowNums, grid);
 }
 
 function drawRectangle(src, rect, color) {
@@ -606,7 +595,7 @@ function drawRectangle(src, rect, color) {
  * @param cell Black and white image of a single cell
  * @param id Unique ID for the Canvas or Promise
  */
-function getResult(cell, id) {
+async function getResult(cell, id) {
     // Trim out 70% from all edges and then check if all pixels are black.
     // If so, we can skip findText because it should be "?".
     // Smaller values than this may create false-negatives because it could select only the empty center of 0.
@@ -643,31 +632,9 @@ function getResult(cell, id) {
     }
 
     if (colorSum === 0) {
-        // console.log('skipping OCR for ' + id);
-        // don't bother sending to OCR!
-        let thenable = {
-          then(onFulfilled, onRejected) {
-            onFulfilled({
-              // The thenable is fulfilled with another thenable
-              then(onFulfilled, onRejected) {
-                completedOCRCount++;
-                updateStatus('Single OCR number complete: ' + completedOCRCount);
-
-                onFulfilled({
-                    id: id,
-                    text: '?'
-                });
-              },
-            });
-          },
-        };
-
-        return Promise.resolve(thenable);
+        return '?';
     } else {
         // tesseract it!
-        // console.log('cell', cell);
-        // console.log('id', id);
-        console.log('findText', id);
         return findText(cell, id);
     }
 }
@@ -777,7 +744,7 @@ function removeOutliers(lines) {
         if (diff > averageDistance * 1.7) {
             // add line at this coordinate
             let newLine = Math.round(lines[i] + averageDistance);
-            lines.splice(i, 0, newLine);
+            lines.splice(i+1, 0, newLine);
             // go to the next item
             i++;
         }
@@ -798,39 +765,20 @@ async function findText(src, id) {
     let canvas = document.createElement('canvas');
     canvas.setAttribute('class', 'ocr-placeholder');
     canvas.setAttribute('id', id);
-    canvas.setAttribute('style', "display:none;");
+    // canvas.setAttribute('style', "display:none;");
 
     document.querySelector('body').append(canvas);
 
     cv.imshow(id, src);
 
     // return the promise
-    return await worker.recognize(document.getElementById(id))
-        .then(function(result) {
-            console.log('id', id);
-            console.log('result', result);
-            completedOCRCount++;
-            updateStatus('Single OCR number complete: ' + completedOCRCount);
+    let result = await worker.recognize(document.getElementById(id));
 
-            // if it's empty, return '?'
-            let number = parseInt(result.data.text);
-            if (isNaN(number)) {
-                number = '?';
-            }
+    if (isNaN(result.data.text)) {
+        return '?';
+    }
 
-            console.log('returning');
-
-            return {
-                id: id,
-                text: number
-            }
-        })
-        .catch((err) => {
-            console.log('tesseract error', err);
-        })
-        .finally(() => {
-            console.log('Tesseract completed');
-        });
+    return parseInt(result.data.text)
 }
 
 // blur to help with edge detection and combat image compression?
@@ -850,8 +798,8 @@ function printInput(cols, rows, grid) {
     textarea.setAttribute('cols', cols.length+5);
     textarea.setAttribute('style', 'display:block');
 
-    console.log('rows', rows);
     console.log('cols', cols);
+    console.log('rows', rows);
     console.log('grid', grid);
 
     let input = ' ' + cols.join('') + "\n";
