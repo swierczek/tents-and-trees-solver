@@ -33,25 +33,20 @@ let completedOCRCount = 0;
 
 var worker;
 
-var onTesseractReady = function() {
-    (async () => {
-        // worker = await Tesseract.createWorker('eng');
-        // const { data: { text } } = await worker.recognize('https://tesseract.projectnaptha.com/img/eng_bw.png');
-        // console.log(text);
-        // await worker.terminate();
+async function onTesseractReady() {
+    console.log('tesseract ready');
+    worker = await Tesseract.createWorker('eng', 1, {
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
+        // logger: m => console.log('tesseract logger', m)
+        // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
+    });
 
-        worker = await Tesseract.createWorker('eng', 1, {
-            tessedit_char_whitelist: '0123456789',
-            tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
-            logger: m => console.log('tesseract logger', m)
-            // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
-        });
-
-        console.log(worker);
-    })();
-}
+    console.log(worker);
+};
 
 var onOpenCvReady = function() {
+    console.log('opencv ready');
     updateStatus('OpenCV.js is ready');
 
     let placeholders = document.querySelectorAll('.placeholder img');
@@ -628,12 +623,12 @@ function getResult(cell, id) {
     let center = cell.roi(centerRect);
 
     // display this in a new canvas for debugging
-    let tempId = 'center-' + id;
-    let canvas = document.createElement('canvas');
-    canvas.setAttribute('class', 'center-placeholder');
-    canvas.setAttribute('id', tempId);
-    document.querySelector('body').append(canvas);
-    cv.imshow(tempId, center);
+    // let tempId = 'center-' + id;
+    // let canvas = document.createElement('canvas');
+    // canvas.setAttribute('class', 'center-placeholder');
+    // canvas.setAttribute('id', tempId);
+    // document.querySelector('body').append(canvas);
+    // cv.imshow(tempId, center);
 
     let colorSum = 0;
     for (let i = 0; i < center.size().width; i++) {
@@ -803,58 +798,39 @@ async function findText(src, id) {
     let canvas = document.createElement('canvas');
     canvas.setAttribute('class', 'ocr-placeholder');
     canvas.setAttribute('id', id);
+    canvas.setAttribute('style', "display:none;");
 
     document.querySelector('body').append(canvas);
 
     cv.imshow(id, src);
 
-    // console.log('creating worker');
+    // return the promise
+    return await worker.recognize(document.getElementById(id))
+        .then(function(result) {
+            console.log('id', id);
+            console.log('result', result);
+            completedOCRCount++;
+            updateStatus('Single OCR number complete: ' + completedOCRCount);
 
-    try {
-        // configure the OCR worker
-        // https://github.com/naptha/tesseract.js/blob/HEAD/docs/api.md#create-worker
-        // const { createWorker } = Tesseract;
-        // const worker = await Tesseract.createWorker('eng', 1, {
-        //     tessedit_char_whitelist: '0123456789',
-        //     tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
-        //     logger: m => console.log('tesseract logger', m)
-        //     // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
-        // });
+            // if it's empty, return '?'
+            let number = parseInt(result.data.text);
+            if (isNaN(number)) {
+                number = '?';
+            }
 
-        // await worker.terminate(); // maybe?
+            console.log('returning');
 
-        // console.log('creating worker');
-        // console.log('confirming worker', worker);
-
-        // return the promise
-        return await worker.recognize(document.getElementById(id))
-            .then(function(result) {
-                console.log('result', result);
-                completedOCRCount++;
-                updateStatus('Single OCR number complete: ' + completedOCRCount);
-
-                // if it's empty, return '?'
-                let number = parseInt(result.data.text);
-                if (isNaN(number)) {
-                    number = '?';
-                }
-
-                console.log('returning');
-
-                return {
-                    id: id,
-                    text: number
-                }
-            })
-            .catch((err) => {
-                console.log('tesseract error', err);
-            })
-            .finally(() => {
-                console.log('Tesseract completed');
-            });
-    } catch (error) {
-        console.log('error', error);
-    }
+            return {
+                id: id,
+                text: number
+            }
+        })
+        .catch((err) => {
+            console.log('tesseract error', err);
+        })
+        .finally(() => {
+            console.log('Tesseract completed');
+        });
 }
 
 // blur to help with edge detection and combat image compression?

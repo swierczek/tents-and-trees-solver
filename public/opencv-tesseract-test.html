@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Hello OpenCV.js</title>
+
+    <style>
+        .wrapper {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+        .inputoutput {
+            width: 70%;
+        }
+        .inputoutput > * {
+            width: 100%;
+        }
+
+        .placeholder {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-gap: 5px;
+            padding-bottom: 20px;
+        }
+
+        .placeholder > img {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .placeholder > img.active {
+            border-color: rgb(0, 255, 0);
+        }
+
+        #imageSrc {
+            width: 660px;
+        }
+
+        #puzzleSolution {
+            font-family: monospace;
+        }
+
+        #tent {
+            display: none;
+        }
+
+        label {
+            display: block;
+        }
+        input[type="range"] {
+            display: block;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <form action="http://localhost:8087/php/tents.php" method="GET">
+        <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
+        <!-- fake puzzle solution goes with trees-6 -->
+        <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
+        <p id="puzzleSolution"></p>
+    </form>
+
+    <div class="wrapper">
+        <div class="inputoutput">
+            <div class="placeholder">
+                <img class="test-number" src="/images/test-1.png" id="test-1" />
+                <img class="test-number" src="/images/test-2.png" id="test-2" />
+                <img class="test-number" src="/images/test-3.png" id="test-3" />
+                <img class="test-number" src="/images/test-4.png" id="test-4" />
+                <img class="test-number" src="/images/test-5.png" id="test-5" />
+                <img class="test-number" src="/images/test-6.png" id="test-6" />
+                <img class="test-number" src="/images/test-7.png" id="test-7" />
+                <img class="test-number" src="/images/test-8.png" id="test-8" />
+                <img class="test-number" src="/images/test-9.png" id="test-9" />
+                <img class="test-number" src="/images/test-10.png" id="test-10" />
+                <img class="test-number" src="/images/test-1.png" id="test-11" />
+                <img class="test-number" src="/images/test-2.png" id="test-12" />
+                <img class="test-number" src="/images/test-3.png" id="test-13" />
+                <img class="test-number" src="/images/test-4.png" id="test-14" />
+                <img class="test-number" src="/images/test-5.png" id="test-15" />
+                <img class="test-number" src="/images/test-6.png" id="test-16" />
+                <img class="test-number" src="/images/test-7.png" id="test-17" />
+                <img class="test-number" src="/images/test-8.png" id="test-18" />
+                <img class="test-number" src="/images/test-9.png" id="test-19" />
+                <img class="test-number" src="/images/test-10.png" id="test-20" />
+            </div>
+        </div>
+
+        <button id="button">Grid looks correct - solve it!</button>
+
+        <div class="inputoutput">
+            <canvas id="canvasOutput"></canvas>
+            <canvas id="canvasTemp"></canvas>
+            <img id="tent" src="/images/tent.png" />
+        </div>
+    </div>
+    <!-- <script src="/js/main.js"></script> -->
+    <!-- <script async src="/js/opencv.min.js" onload="onOpenCvReady();" type="text/javascript"></script> -->
+
+    <script src="/js/tesseract-test.js" type="text/javascript"></script>
+    <script src="/js/tesseract.min.js" onload="onTesseractReady();" type="text/javascript"></script>
+    <!-- <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script> -->
+</body>
+
+</html>
