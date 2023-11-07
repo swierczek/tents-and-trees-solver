@@ -55,6 +55,23 @@
             display: block;
             width: 100%;
         }
+
+        summary {
+            display: list-item;
+        }
+
+        datalist {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            writing-mode: vertical-lr;
+            width: 100%;
+        }
+
+        option {
+            padding: 0;
+            padding-top: 10px;
+        }
     </style>
 </head>
 
@@ -69,29 +86,30 @@
     <div class="wrapper">
         <div class="inputoutput">
             <!-- <label><input type="checkbox" name="ocr" id="ocr-checkbox" value="yes" /> Send for OCR?</label> -->
-
-            <label>BW Threshold: <span></span><input type="range" id="bwThreshold" min="30" max="80" /></label>
-
-            <label>Hough Threshold: <span></span><input type="range" id="houghThreshold" min="40" max="100" /></label>
+            <p id="status">OpenCV.js is loading...</p>
 
             <button id="large-cells">Few grid items (large cells)</button>
             <button id="small-cells">Lotsa grid items (teeny cells)</button>
 
+            <details>
+                <summary>Advanced threshold controls</summary>
+                <label>BW Threshold: <span></span><input type="range" id="bwThreshold" min="30" max="80" /></label>
+                <label>Hough Threshold: <span></span><input type="range" id="houghThreshold" min="40" max="100" /></label>
+            </details>
+
             <label>
                 Processing depth: <span>3</span><input type="range" id="depth" min="0" max="4" value="3" list="markers" />
                 <datalist id="markers">
-                    <option value="0"></option>
-                    <option value="1"></option>
-                    <option value="2"></option>
-                    <option value="3"></option>
-                    <option value="4"></option>
+                    <option value="0" label="Black and white"></option>
+                    <option value="1" label="Edge detection"></option>
+                    <option value="2" label="Solid lines"></option>
+                    <option value="3" label="Grid lines"></option>
+                    <option value="4" label="Tree detection"></option>
                     <!-- <option value="5"></option> -->
                 </datalist>
             </label>
 
             <button id="solve-it" disabled>OCR engine loading...</button>
-
-            <p id="status">OpenCV.js is loading...</p>
 
             <div class="placeholder">
                 <!-- <img title="trees" src="/images/trees.png" class="" /> -->
@@ -118,6 +136,19 @@
                 <img title="trees-23" src="/images/trees-23.png" class="" />
                 <img title="trees-24" src="/images/trees-24.png" class="" /> <!-- missing horizontal line -->
                 <img title="trees-25" src="/images/trees-25.png" class="" />
+
+                <img title="6x9-b20-small" src="/images/others/6x9-b20-small.png" class="" />
+                <img title="nov-5-d1-full" src="/images/others/nov-5-d1-full.png" class="" />
+                <img title="nov-5-d1-small" src="/images/others/nov-5-d1-small.png" class="" />
+                <img title="nov-5-d2-full" src="/images/others/nov-5-d2-full.png" class="" />
+                <img title="nov-5-d2-small" src="/images/others/nov-5-d2-small.png" class="" />
+                <img title="nov-5-e1-full" src="/images/others/nov-5-e1-full.png" class="" />
+                <img title="nov-5-e2-full" src="/images/others/nov-5-e2-full.png" class="" />
+                <img title="nov-6-a5-small" src="/images/others/nov-6-a5-small.png" class="" />
+                <img title="nov-6-e2-full" src="/images/others/nov-6-e2-full.png" class="" />
+                <img title="nov-6-e2-small" src="/images/others/nov-6-e2-small.png" class="" />
+                <img title="nov-6-g2-full" src="/images/others/nov-6-g2-full.png" class="" />
+                <img title="nov-6-g2-small" src="/images/others/nov-6-g2-small.png" class="" />
             </div>
 
             <img id="imageSrc" alt="No Image" />
