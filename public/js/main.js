@@ -37,7 +37,7 @@ async function onTesseractReady() {
     console.log('tesseract ready');
     worker = await Tesseract.createWorker('eng', 1, {
         tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: 8, // PSM_SINGLE_WORD
+        tessedit_pageseg_mode: '8', // PSM_SINGLE_WORD https://github.com/naptha/tesseract.js/blob/master/src/constants/PSM.js#L13C9-L13C9
         // logger: m => console.log('tesseract logger', m)
         // langPath: https://tessdata.projectnaptha.com/4.0.0_fast // for speed over accuracy
     });
@@ -125,6 +125,13 @@ var onOpenCvReady = function() {
         });
     }
 
+    // auto click button
+    if (activeImage.classList.contains('small-cells')) {
+        smallCells.dispatchEvent(new Event("click"));
+    } else if (activeImage.classList.contains('large-cells')) {
+        largeCells.dispatchEvent(new Event("click"));
+    }
+
     let solveIt = document.querySelector('#solve-it');
     if (solveIt) {
         solveIt.addEventListener('click', function(e) {
@@ -143,10 +150,9 @@ var onOpenCvReady = function() {
     processImage();
 }
 
-function initSlider(id, initVal) {
+function initSlider(id) {
     let slider = document.querySelector('#'+id);
     if (slider) {
-        slider.value = initVal; // page load default
         slider.addEventListener('input', function(e) {
             event.target.previousElementSibling.innerText = event.target.value;
 
@@ -177,6 +183,8 @@ var processImage = function() {
 
     let src = cv.imread(imgElement);
 
+    imageMetadata(src);
+
     let textarea = document.querySelector('#puzzleInput');
     textarea.setAttribute('style', 'display:none');
     textarea.value = '';
@@ -189,6 +197,9 @@ var processImage = function() {
         canvas.remove();
     });
 
+    let canvasPlaceholders = document.querySelectorAll('.center-placeholder');
+    canvasPlaceholders.forEach((canvas) => canvas.remove());
+
     // updateStatus('Cropping grid...');
     src = cropGrid(src);
 
@@ -197,7 +208,9 @@ var processImage = function() {
 
     cv.imshow('canvasOutput', src);
 
-    src.delete();
+    // runOcr(src, false);
+
+    // src.delete();
 };
 
 function imageMetadata(src) {
@@ -521,7 +534,7 @@ function getGaps(lines) {
     return gaps;
 }
 
-async function runOcr(src) {
+async function runOcr(src, useTesseract = true) {
     let rowNums = [];
     let colNums = [];
     let padding = 6;
@@ -543,14 +556,24 @@ async function runOcr(src) {
         // drawRectangle(src, numRect)
 
         let cell = src.roi(numRect);
-        // for OCR we want white bg
-        cell = blackAndWhite(cell, 50, false);
 
-        let result = await getResult(cell, 'col-' + x);
+        // resize the number image
+        // let dsize = new cv.Size(cell.size().width * 2, cell.size().height * 2);
+        // cv.resize(cell, cell, dsize, 0, 0, cv.INTER_AREA);
+
+        // for OCR we want white bg
+        bw = blackAndWhite(cell, 50, false);
+        // but for OpenCV contour detection we want black bg...
+        wb = blackAndWhite(cell, 50, true);
+
+        let result = await getResult(bw, wb, 'col-' + x, useTesseract);
         // console.log('top-result', result);
         colNums.push(result);
+
+        // break;
     }
 
+    //*
     // left column of numbers
     for (let y = 0; y < horizontalLines.length-1; y++) {
         let numRect = new cv.Rect(
@@ -564,13 +587,19 @@ async function runOcr(src) {
         // drawRectangle(src, numRect)
 
         let cell = src.roi(numRect);
-        // for OCR we want white bg
-        cell = blackAndWhite(cell, 50, false);
 
-        let result = await getResult(cell, 'row-' + y);
+        // for OCR we want white bg
+        bw = blackAndWhite(cell, 50, false);
+        // but for OpenCV contour detection we want black bg...
+        wb = blackAndWhite(cell, 50, true);
+
+        let result = await getResult(bw, wb, 'row-' + y, useTesseract);
         // console.log('left-result', result);
         rowNums.push(result);
+
+        // break;
     }
+    //*/
 
     // console.log('cols', colNums);
     // console.log('rows', rowNums);
@@ -596,29 +625,21 @@ function drawRectangle(src, rect, color) {
  * @param cell Black and white image of a single cell
  * @param id Unique ID for the Canvas or Promise
  */
-async function getResult(cell, id) {
+async function getResult(bw, wb, id, useTesseract) {
     // Trim out 70% from all edges and then check if all pixels are black.
     // If so, we can skip findText because it should be "?".
     // Smaller values than this may create false-negatives because it could select only the empty center of 0.
     // @todo: a bettter way would be to find the contours, then determine if any contours pass
-    //        through the ~center (or a 20% wide center area or something)
+    //        through the ~center (or a 20% wide center area or something in case the number isn't quite centered)
     let percent = .3;
     let centerRect = new cv.Rect(
-        cell.size().width * percent,
-        cell.size().height * percent,
-        cell.size().width * (1 - (percent * 2)), // *2 because we need to trim both the left and right
-        cell.size().height * (1 - (percent * 2)),
+        bw.size().width * percent,
+        bw.size().height * percent,
+        bw.size().width * (1 - (percent * 2)), // *2 because we need to trim both the left and right
+        bw.size().height * (1 - (percent * 2)),
     );
 
-    let center = cell.roi(centerRect);
-
-    // display this in a new canvas for debugging
-    // let tempId = 'center-' + id;
-    // let canvas = document.createElement('canvas');
-    // canvas.setAttribute('class', 'center-placeholder');
-    // canvas.setAttribute('id', tempId);
-    // document.querySelector('body').append(canvas);
-    // cv.imshow(tempId, center);
+    let center = bw.roi(centerRect);
 
     let colorSum = 0;
     for (let i = 0; i < center.size().width; i++) {
@@ -635,9 +656,186 @@ async function getResult(cell, id) {
     if (colorSum === 0) {
         return '?';
     } else {
+        let tempId = 'center-' + id;
+        let current = document.querySelector('#'+tempId);
+
+        console.log('displaying '+id);
+
+        if (!current) {
+            // display this in a new canvas for debugging
+            let canvas = document.createElement('canvas');
+            canvas.setAttribute('class', 'center-placeholder');
+            canvas.setAttribute('id', tempId);
+            document.querySelector('.canvasWrapper').append(canvas);
+        }
+
+        // cv.imshow(tempId, center);
+        cv.imshow(tempId, wb);
+
+        let openCvResult = openCvOcr(wb);
+
+        // use both open CV and Tesseract to validate?
+        // TODO this probably a bad idea, but it seems to work well!
+        // i.e. openCv has issues with detecting 2, while Tesseract has issues detecting 4 and 6
+        // so combining the options here seems to work well because they each have their strengths
+        if (openCvResult == 2) {
+            openCvResult = findText(bw, id);
+        }
+
+        return openCvResult;
+
         // tesseract it!
-        return findText(cell, id);
+        // return useTesseract ? findText(bw, id) : openCvOcr(wb);
+        // return findText(bw, id);
     }
+}
+
+/**
+ * Use template matching to determine which number this is.
+ * This works well except for 1 along the top with a tree under it, because it matches 2 due to the tree poking up
+ * TODO:
+ *
+ * @param wb White image on black background for bounding rectangle functionality
+ */
+function openCvOcr(wb) {
+    let contours = findContours(wb);
+
+    console.log('contours', contours.size());
+
+    let probableNumbers = [];
+
+    for (let i = 0; i < contours.size(); i++) {
+        // console.log('contour', contours.get(i));
+
+        let boundingRect = cv.boundingRect(contours.get(i));
+
+        // console.log('bounding rect', boundingRect);
+
+        // all numbers are taller than wide, so if this rect doesn't match it's almost certainly not a number
+        if (boundingRect.width > boundingRect.height) {
+            continue;
+        }
+
+        probableNumbers.push(boundingRect);
+
+        // drawRectangle(wb, boundingRect, new cv.Scalar(130, 0, 0, 255));
+
+        // if (rect.y + rect.height > bottomCrop) {
+        //     bottomCrop = rect.y + rect.height;
+        // }
+        // if (rect.y < topCrop) {
+        //     topCrop = rect.y;
+        // }
+
+        // if (rect.x + rect.width > rightCrop) {
+        //     rightCrop = rect.x + rect.width;
+        // }
+        // if (rect.x < leftCrop) {
+        //     leftCrop = rect.x;
+        // }
+    }
+
+    if (probableNumbers.length === 0) {
+        return '?';
+    }
+
+    if (probableNumbers.length > 1) {
+        console.log('TOO MANY BOUNDING RECTANGLES');
+        return '?';
+    } else {
+        console.log('bw', bw);
+        bw = bw.roi(probableNumbers[0]);
+
+        let matches = {};
+
+        // check numbers 0-10 to see which matches best
+        // https://docs.opencv.org/3.4/d8/dd1/tutorial_js_template_matching.html
+        for(let i=0; i<=10; i++) {
+            let ocrImage = bw.clone();
+            let num = cv.imread(document.querySelector('#bw-' + i));
+
+            let ratio = ocrImage.size().width / ocrImage.size().height;
+
+            // num is 21 x 31
+            // ocr is 28 x 44
+            // ocr scaled should be 21x33 or 20 x 31
+
+            // console.log('num ratio ' + i, ratio);
+
+            num = blackAndWhite(num, 50);
+
+            // scale to match the number's height/width
+            // constrain to the bigger of num width or height
+            let dsize;
+            if (ocrImage.size().width / num.size().width > ocrImage.size().height / num.size().height) {
+                dsize = new cv.Size(num.size().width, num.size().width / ratio);
+            } else {
+                dsize = new cv.Size(num.size().height * ratio, num.size().height);
+            }
+
+            // console.log('ocr size', ocrImage.size());
+            // console.log('num size', num.size());
+            // console.log('new size', dsize);
+            cv.resize(ocrImage, ocrImage, dsize);
+
+            let result = new cv.Mat();
+            let mask = new cv.Mat();
+            cv.matchTemplate(ocrImage, num, result, cv.TM_CCOEFF, mask);
+
+            // addCanvasImage(num);
+            // addCanvasImage(ocrImage);
+            // addCanvasImage(result);
+            // addCanvasImage(mask);
+
+            // return result;
+
+            // console.log('result', result);
+
+            let res = cv.minMaxLoc(result, mask);
+            let maxPoint = res.maxLoc;
+
+            // console.log('res', res);
+            // console.log('maxPoint', maxPoint);
+
+            matches[i] = res.maxVal;
+            // break;
+        }
+
+        console.log('matches', matches);
+
+        // https://stackoverflow.com/questions/27376295/getting-key-with-the-highest-value-from-object
+        let ocrResult = Object.keys(matches).reduce((a, b) => matches[a] > matches[b] ? a : b);
+
+        console.log('OCR Result', ocrResult);
+
+        return ocrResult;
+    }
+
+
+    // essentially the width of a grid line
+    // let padding = 2;
+
+    // let rect = new cv.Rect(
+    //     leftCrop - padding,
+    //     topCrop - padding,
+    //     rightCrop - leftCrop + padding,
+    //     bottomCrop - topCrop + padding
+    // );
+
+    contours.delete();
+
+    // return bw.roi(rect);
+    return bw;
+}
+
+function addCanvasImage(src) {
+    let id = 'rand-id-' + Math.round(Math.random() * 100000);
+    let canvas = document.createElement('canvas');
+    canvas.setAttribute('id', id);
+
+    document.querySelector('.canvasWrapper').append(canvas);
+
+    cv.imshow(id, src);
 }
 
 function displaySolutionGrid(results) {
@@ -812,24 +1010,24 @@ function printInput(cols, rows, grid) {
     updateStatus('Sending to solver...');
     let form = document.querySelector('form');
 
-    fetch(
-        form.action,
-        {
-            method:'post',
-            body: new FormData(form)
-        }
-    ).then((response) => {
-        return response.json();
-    }).then((response) => {
-        // console.log('response', response);
+    // fetch(
+    //     form.action,
+    //     {
+    //         method:'post',
+    //         body: new FormData(form)
+    //     }
+    // ).then((response) => {
+    //     return response.json();
+    // }).then((response) => {
+    //     // console.log('response', response);
 
-        updateStatus('Complete!');
-        updateStatus(response.success ? 'Solved!' : 'Not solved :(');
-        document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
+    //     updateStatus('Complete!');
+    //     updateStatus(response.success ? 'Solved!' : 'Not solved :(');
+    //     document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
 
-        updateStatus('Displaying results...');
-        displaySolutionGrid(response.tents);
-    });
+    //     updateStatus('Displaying results...');
+    //     displaySolutionGrid(response.tents);
+    // });
 }
 
 function updateStatus(status) {
