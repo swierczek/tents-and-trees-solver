@@ -1,17 +1,18 @@
 let imgElement = document.getElementById('imageSrc');
 
 // let imgElement = document.getElementById('imageSrc');
-// let inputElement = document.getElementById('fileInput');
+let inputElement = document.getElementById('fileInput');
 
-// inputElement.addEventListener('change', (e) => {
-    // imgElement.src = URL.createObjectURL(e.target.files[0]);
-// }, false);
+inputElement.addEventListener('change', (e) => {
+    imgElement.src = URL.createObjectURL(e.target.files[0]);
+}, false);
 
-// imgElement.onload = function() {
-//     let mat = cv.imread(imgElement);
-//     cv.imshow('canvasOutput', mat);
-//     mat.delete();
-// };
+imgElement.onload = function() {
+    let mat = cv.imread(imgElement);
+    cv.imshow('canvasOutput', mat);
+    processImage();
+    mat.delete();
+};
 
 let grid = [];
 let verticalLines = [];
@@ -87,10 +88,6 @@ var onOpenCvReady = function() {
             }
         });
     });
-
-    let activeImage = document.querySelector('.placeholder img.active');
-
-    imgElement.src = activeImage.src;
 
     initSlider('bwThreshold', 56);
     initSlider('houghThreshold', 95);
@@ -175,7 +172,11 @@ var onOpenCvReady = function() {
         })
     }
 
-    processImage();
+    let activeImage = document.querySelector('.placeholder img.active');
+    if (activeImage) {
+        imgElement.src = activeImage.src;
+        processImage();
+    }
 }
 
 /**
