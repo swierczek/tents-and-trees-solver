@@ -34,6 +34,10 @@ let completedOCRCount = 0;
 
 var worker;
 
+/**
+ * After Tesseract JS is loaded, set up a single worker for future OCR
+ * and enable the solve button
+ */
 async function onTesseractReady() {
     console.log('tesseract ready');
     worker = await Tesseract.createWorker('eng', 1, {
@@ -47,9 +51,13 @@ async function onTesseractReady() {
     solveButton.removeAttribute('disabled');
     solveButton.innerText = 'Grid looks correct - solve it!';
 
-    console.log(worker);
+    // console.log(worker);
 };
 
+/**
+ * After OpenCV JS is loaded, load the placeholder images and
+ * set up DOM event listeners, and process the active image
+ */
 var onOpenCvReady = function() {
     console.log('opencv ready');
     updateStatus('OpenCV.js is ready');
@@ -131,6 +139,9 @@ var onOpenCvReady = function() {
         tesseractCheckbox.checked = false;
         tesseractCheckbox.addEventListener('change', function(e) {
             useTesseract = tesseractCheckbox.checked;
+
+            updateStatus('');
+            processImage();
         });
     }
 
@@ -154,10 +165,42 @@ var onOpenCvReady = function() {
             let src = cv.imread('canvasOutput');
 
             runOcr(src);
+
+            // nums.then((num) => {
+            //     console.log('num', num);
+            //     printNumbers(src, num.rowNums, num.colNums);
+            // });
+
         })
     }
 
     processImage();
+}
+
+/**
+ *
+ */
+function printNumbers(src, rowNums, colNums) {
+    if (processingDepth === 5) {
+        // let fontScale = (rowNums.length + colNums.length) / 5;
+
+        // wolfram alpha FTW?
+        let fontScale = Math.max((25 / 6) - ((rowNums.length + colNums.length) / 12), 1);
+        let fontSize = fontScale;
+
+        // draw result text on the image
+        for (let x = 0; x < verticalLines.length-1; x++) {
+            cv.putText(src, colNums[x]+"", {x: verticalLines[x], y: gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
+        }
+
+        for (let y = 0; y < horizontalLines.length-1; y++) {
+            cv.putText(src, rowNums[y]+"", {x: 0, y: horizontalLines[y] + gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
+        }
+
+        cv.imshow('canvasOutput', src);
+    }
+
+    // return src;
 }
 
 function initSlider(id) {
@@ -421,8 +464,8 @@ function detectGrid(src) {
         });
     });
 
-    verticalLines = removeOutliers(verticalLines);
-    horizontalLines = removeOutliers(horizontalLines);
+    verticalLines = removeSimilarLines(verticalLines);
+    horizontalLines = removeSimilarLines(horizontalLines);
 
     // console.log('verticalLines', verticalLines);
     // console.log('horizontalLines', horizontalLines);
@@ -655,14 +698,6 @@ async function runOcr(src) {
     // console.log('rowCells', rowCells);
     // console.log('horizontalLines', horizontalLines);
 
-    if (rowCells.length + 1 !== horizontalLines.length) {
-        console.log('WRONG NUMBER OF BOUNDING RECTS FOR ROW CELLS');
-    }
-
-    if (colCells.length + 1 !== verticalLines.length) {
-        console.log('WRONG NUMBER OF BOUNDING RECTS FOR COL CELLS');
-    }
-
     let minHeight = 9999;
 
     // because we know each number is the same height (+/- a few pixels), we can crop out the
@@ -749,29 +784,12 @@ async function runOcr(src) {
         }
     };
 
-    if (processingDepth === 5) {
-        // let fontScale = (rowNums.length + colNums.length) / 5;
-
-        // wolfram alpha FTW?
-        let fontScale = Math.max((25 / 6) - ((rowNums.length + colNums.length) / 12), 1);
-        let fontSize = fontScale;
-
-        // draw result text on the image
-        for (let x = 0; x < verticalLines.length-1; x++) {
-            cv.putText(src, colNums[x], {x: verticalLines[x], y: gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
-        }
-
-        for (let y = 0; y < horizontalLines.length-1; y++) {
-            cv.putText(src, rowNums[y], {x: 0, y: horizontalLines[y] + gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
-        }
-
-        cv.imshow('canvasOutput', src);
-
-        console.log('cols', colNums);
-        console.log('rows', rowNums);
-    }
+    printNumbers(src, rowNums, colNums);
 
     printInput(colNums, rowNums, grid);
+
+
+    // return {'rowNums': rowNums, 'colNums': colNums};
 }
 
 function drawRectangle(src, rect, color) {
@@ -911,6 +929,10 @@ async function openCvOcr(wb) {
     return ocrResult;
 }
 
+/**
+ * Add a canvas to the page and display an image - mostly for debuging purposes;
+ * @param src Image to display
+ */
 function addCanvasImage(src) {
     let id = 'rand-id-' + Math.round(Math.random() * 100000);
     let canvas = document.createElement('canvas');
@@ -944,6 +966,7 @@ function displaySolutionGrid(results) {
         let dsize = new cv.Size(tentRect.width, tentRect.height);
         cv.resize(tentCopy, tentCopy, dsize, 0, 0, cv.INTER_AREA);
 
+        // Draw tent over src (i.e. overwrite these pixels specifically)
         // https://docs.opencv.org/3.4/dd/d4d/tutorial_js_image_arithmetics.html
         for(i=0; i<tentCopy.size().height; i++) {
             for(j=0; j<tentCopy.size().width; j++) {
@@ -954,22 +977,6 @@ function displaySolutionGrid(results) {
         }
 
         tentCopy.delete();
-
-        // alternate attempt below (blend instead of overwriting individual pixels)
-
-        // add padding to make the tent image the same size as src
-        // https://docs.opencv.org/3.4/de/d06/tutorial_js_basic_ops.html
-        // let size = [
-        //     horizontalLines[y], // top
-        //     src.size().height - horizontalLines[y+1], // bottom
-        //     verticalLines[x], // left
-        //     src.size().width - verticalLines[x+1], // right
-        // ];
-        // cv.copyMakeBorder(imgSrc2, imgSrc2, ...size, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
-
-        // https://docs.opencv.org/3.4/d5/df3/tutorial_js_trackbar.html
-        // cv.addWeighted( imgSrc2, .5, src, .5, 0.0, src, -1);
-
     });
 
     cv.imshow('canvasOutput', src);
@@ -978,7 +985,12 @@ function displaySolutionGrid(results) {
     tentImg.delete();
 }
 
-function removeOutliers(lines) {
+/**
+ * Remove lines that are closer together than the average width of a cell
+ * @param lines array
+ * @return array
+ */
+function removeSimilarLines(lines) {
     lines = lines.filter(e=>e);
     lines.sort(function(a, b) {
         return a - b;
@@ -1004,7 +1016,7 @@ function removeOutliers(lines) {
         // console.log('avgMin', averageDistance * .8);
         // console.log('avgMax', averageDistance * 1.2);
 
-        // account for a 20% difference in either direction
+        // account for a 20% difference in size because the width calculations vary a bit
         if (diff < (averageDistance * .8)) {
             // remove this item
             lines.splice(i, 1);
@@ -1089,24 +1101,24 @@ function printInput(cols, rows, grid) {
     updateStatus('Sending to solver...');
     let form = document.querySelector('form');
 
-    // fetch(
-    //     form.action,
-    //     {
-    //         method:'post',
-    //         body: new FormData(form)
-    //     }
-    // ).then((response) => {
-    //     return response.json();
-    // }).then((response) => {
-    //     // console.log('response', response);
+    fetch(
+        form.action,
+        {
+            method:'post',
+            body: new FormData(form)
+        }
+    ).then((response) => {
+        return response.json();
+    }).then((response) => {
+        // console.log('response', response);
 
-    //     updateStatus('Complete!');
-    //     updateStatus(response.success ? 'Solved!' : 'Not solved :(');
-    //     document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
+        updateStatus('Complete!');
+        updateStatus(response.success ? 'Solved!' : 'Not solved :(');
+        document.querySelector('#puzzleSolution').innerHTML = JSON.stringify(response.tents);
 
-    //     updateStatus('Displaying results...');
-    //     displaySolutionGrid(response.tents);
-    // });
+        updateStatus('Displaying results...');
+        displaySolutionGrid(response.tents);
+    });
 }
 
 function updateStatus(status) {
@@ -1139,7 +1151,7 @@ function debounce(func, wait, immediate) {
 };
 
 function getStandardDeviation(array) {
-  const n = array.length
-  const mean = array.reduce((a, b) => a + b) / n
-  return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
+    const n = array.length
+    const mean = array.reduce((a, b) => a + b) / n
+    return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
 }

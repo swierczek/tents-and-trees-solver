@@ -360,11 +360,12 @@ class TentSolver {
                 $success = $this->tentCount === $this->treeCount;
 
                 $tents = [];
-                foreach($this->pairs as $tree => $tent) {
-                    $coords = explode(',', $tent);
+                foreach($this->getAllCells(self::TENT) as $d) {
+                    list($x, $y, $cell) = $d;
+
                     $tents[] = [
-                        'x' => $coords[0],
-                        'y' => $coords[1],
+                        'x' => $x,
+                        'y' => $y,
                     ];
                 }
 
