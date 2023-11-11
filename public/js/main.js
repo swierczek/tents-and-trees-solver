@@ -169,7 +169,7 @@ var onOpenCvReady = function() {
 
             // nums.then((num) => {
             //     console.log('num', num);
-            //     printNumbers(src, num.rowNums, num.colNums);
+            //     drawNumbers(src, num.rowNums, num.colNums);
             // });
 
         })
@@ -181,7 +181,7 @@ var onOpenCvReady = function() {
 /**
  *
  */
-function printNumbers(src, rowNums, colNums) {
+function drawNumbers(src, rowNums, colNums) {
     if (processingDepth === 5) {
         // let fontScale = (rowNums.length + colNums.length) / 5;
 
@@ -191,7 +191,7 @@ function printNumbers(src, rowNums, colNums) {
 
         // draw result text on the image
         for (let x = 0; x < verticalLines.length-1; x++) {
-            cv.putText(src, colNums[x]+"", {x: verticalLines[x], y: gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
+            cv.putText(src, colNums[x]+"", {x: verticalLines[x], y: gridTop - 3}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
         }
 
         for (let y = 0; y < horizontalLines.length-1; y++) {
@@ -785,7 +785,7 @@ async function runOcr(src) {
         }
     };
 
-    printNumbers(src, rowNums, colNums);
+    drawNumbers(src, rowNums, colNums);
 
     printInput(colNums, rowNums, grid);
 
@@ -910,7 +910,7 @@ async function openCvOcr(wb) {
         // if the target image is more than twice as wide as the template image, it's very unlikely
         // that this is the right match, so penalize it
         // i.e. if we're looking at a 1, then every other target image except 1 will be too wide
-        if (num.size().width > ocrImage.size().width * 2) {
+        if (num.size().width > ocrImage.size().width + 5) {
             max -= .3;
         }
 
@@ -951,6 +951,11 @@ function displaySolutionGrid(results) {
 
     // manually overlay each tent image over the src
     results.forEach(function(item, index) {
+        console.log('x', item.x);
+        console.log('verticalLines', verticalLines);
+        console.log('y', item.y);
+        console.log('horizontalLines', horizontalLines);
+
         let x = parseInt(item.x);
         let y = parseInt(item.y);
 
@@ -965,7 +970,10 @@ function displaySolutionGrid(results) {
         );
 
         let dsize = new cv.Size(tentRect.width, tentRect.height);
+        console.log(dsize);
         cv.resize(tentCopy, tentCopy, dsize, 0, 0, cv.INTER_AREA);
+
+        // TODO trees-22 has an off by 1 error for some reason
 
         // Draw tent over src (i.e. overwrite these pixels specifically)
         // https://docs.opencv.org/3.4/dd/d4d/tutorial_js_image_arithmetics.html

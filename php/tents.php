@@ -180,6 +180,7 @@ class TentSolver {
 
             '(--)x(--)x(--)' => self::GRASS,
 
+            // -x-xxxx-x- means there are 2  -x- patterns
             '-(x)-x{2,}-(x)-' => self::GRASS,
         ],
         4 => [
@@ -378,8 +379,8 @@ class TentSolver {
                 exit;
             } else {
                 // print the full grid
-            $this->printGrid();
-        }
+                $this->printGrid();
+            }
         }
 
         if ($changed && $this->tentCount === $this->treeCount) {
