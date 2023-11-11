@@ -137,6 +137,8 @@ class TentSolver {
             // alternating ox means the xs in other rows will be grass
             '-(x)-(x)-' => self::GRASS,
 
+            '(-)-(-)' => self::TENT,
+
             // oxoxxo means the first x in other rows will be grass
             '-(x)-x{2,}-' => self::GRASS,
 
@@ -177,6 +179,8 @@ class TentSolver {
             '(-)x{1,}--x{1,}--' => self::TENT,
 
             '(--)x(--)x(--)' => self::GRASS,
+
+            '-(x)-x{2,}-(x)-' => self::GRASS,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
