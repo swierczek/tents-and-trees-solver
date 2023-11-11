@@ -131,9 +131,6 @@ var onOpenCvReady = function() {
         tesseractCheckbox.checked = false;
         tesseractCheckbox.addEventListener('change', function(e) {
             useTesseract = tesseractCheckbox.checked;
-
-            updateStatus('');
-            processImage();
         });
     }
 
