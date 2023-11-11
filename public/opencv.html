@@ -72,23 +72,26 @@
             padding: 0;
             padding-top: 10px;
         }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 
 <body>
-    <div class="canvasWrapper">
-
-    </div>
-
-    <form action="http://localhost:8087/php/tents.php" method="GET">
-        <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
-        <!-- fake puzzle solution goes with trees-6 -->
-        <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
-        <p id="puzzleSolution"></p>
-    </form>
-
     <div class="wrapper">
+
         <div class="inputoutput">
+            <div class="canvasWrapper"></div>
+
+            <form action="http://localhost:8087/php/tents.php" method="GET">
+                <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
+                <!-- fake puzzle solution goes with trees-6 -->
+                <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
+                <p id="puzzleSolution"></p>
+            </form>
+
             <!-- <label><input type="checkbox" name="ocr" id="ocr-checkbox" value="yes" /> Send for OCR?</label> -->
             <p id="status">OpenCV.js is loading...</p>
 
@@ -101,14 +104,17 @@
                 <label>Hough Threshold: <span></span><input type="range" id="houghThreshold" min="40" max="100" /></label>
             </details>
 
+            <label><input type="checkbox" id="use-tesseract" />Use Tesseract?</label>
+
             <label>
-                Processing depth: <span>3</span><input type="range" id="depth" min="0" max="4" value="3" list="markers" />
+                Processing depth: <span>3</span><input type="range" id="depth" min="0" max="5" value="3" list="markers" />
                 <datalist id="markers">
                     <option value="0" label="Black and white"></option>
                     <option value="1" label="Edge detection"></option>
                     <option value="2" label="Solid lines"></option>
                     <option value="3" label="Grid lines"></option>
                     <option value="4" label="Tree detection"></option>
+                    <option value="5" label="OCR"></option>
                     <!-- <option value="5"></option> -->
                 </datalist>
             </label>
@@ -119,7 +125,7 @@
 
             <div class="placeholder">
                 <!-- <img title="trees" src="/images/trees.png" class="" /> -->
-                <img title="trees-1" src="/images/trees-1.png" class="active large-cells" />
+                <img title="trees-1" src="/images/trees-1.png" class="large-cells" />
                 <!-- <img title="trees-2" src="/images/trees-2.png" class="" /> -->
                 <img title="trees-4" src="/images/trees-4.png" class="large-cells" />
                 <img title="trees-5" src="/images/trees-5.png" class="large-cells" /> <!-- miscategorized empty cell -->
@@ -136,7 +142,7 @@
 
                 <img title="trees-20" src="/images/trees-20.png" class="large-cells" />
                 <img title="trees-19" src="/images/trees-19.png" class="large-cells" />
-                <img title="trees-21" src="/images/trees-21.png" class="large-cells" />
+                <img title="trees-21" src="/images/trees-21.png" class="large-cells active" />
                 <img title="trees-22" src="/images/trees-22.png" class="small-cells" />
 
                 <img title="trees-23" src="/images/trees-23.png" class="large-cells" />

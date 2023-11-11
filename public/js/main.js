@@ -26,6 +26,7 @@ let houghThreshold = 0;
 let processingDepth = 0;
 
 let ocr = true;
+let useTesseract = false;
 
 let statuses = [];
 
@@ -80,7 +81,7 @@ var onOpenCvReady = function() {
 
     let depthSlider = document.querySelector('#depth');
     if (depthSlider) {
-        depthSlider.value = 3; // reset it on page load (show the grid)
+        depthSlider.value = 5; // reset it on page load (show the grid)
         processingDepth = parseInt(depthSlider.value);
         depthSlider.addEventListener('input', function(e) {
             event.target.previousElementSibling.innerText = event.target.value;
@@ -125,6 +126,17 @@ var onOpenCvReady = function() {
         });
     }
 
+    let tesseractCheckbox = document.querySelector('#use-tesseract');
+    if (tesseractCheckbox) {
+        tesseractCheckbox.checked = false;
+        tesseractCheckbox.addEventListener('change', function(e) {
+            useTesseract = tesseractCheckbox.checked;
+
+            updateStatus('');
+            processImage();
+        });
+    }
+
     // auto click button
     if (activeImage.classList.contains('small-cells')) {
         smallCells.dispatchEvent(new Event("click"));
@@ -135,7 +147,7 @@ var onOpenCvReady = function() {
     let solveIt = document.querySelector('#solve-it');
     if (solveIt) {
         solveIt.addEventListener('click', function(e) {
-            if (processingDepth != 4) {
+            if (processingDepth < 4) {
                 // set processingDepth to 4 so the grid detection fully runs
                 let depthSlider = document.querySelector('#depth');
                 depthSlider.value = 4;
@@ -143,6 +155,7 @@ var onOpenCvReady = function() {
             }
 
             let src = cv.imread('canvasOutput');
+
             runOcr(src);
         })
     }
@@ -183,7 +196,7 @@ var processImage = function() {
 
     let src = cv.imread(imgElement);
 
-    imageMetadata(src);
+    // imageMetadata(src);
 
     let textarea = document.querySelector('#puzzleInput');
     textarea.setAttribute('style', 'display:none');
@@ -208,9 +221,7 @@ var processImage = function() {
 
     cv.imshow('canvasOutput', src);
 
-    // runOcr(src, false);
-
-    // src.delete();
+    src.delete();
 };
 
 function imageMetadata(src) {
@@ -534,7 +545,9 @@ function getGaps(lines) {
     return gaps;
 }
 
-async function runOcr(src, useTesseract = true) {
+async function runOcr(src) {
+    let colCells = [];
+    let rowCells = [];
     let rowNums = [];
     let colNums = [];
     let padding = 6;
@@ -542,6 +555,9 @@ async function runOcr(src, useTesseract = true) {
     let ocrCount = (verticalLines.length - 1) + (horizontalLines.length - 1);
 
     updateStatus('Running OCR on ' + ocrCount + ' cells...');
+
+    // first look at all the cells where the numbers are, then find the bounding boxes,
+    // then crop all the bounding boxes, then finally send those off to OCR
 
     // top row of numbers
     for (let x = 0; x < verticalLines.length-1; x++) {
@@ -557,23 +573,41 @@ async function runOcr(src, useTesseract = true) {
 
         let cell = src.roi(numRect);
 
-        // resize the number image
-        // let dsize = new cv.Size(cell.size().width * 2, cell.size().height * 2);
-        // cv.resize(cell, cell, dsize, 0, 0, cv.INTER_AREA);
+        // for Tesseract OCR we want white bg
+        // bw = blackAndWhite(cell, 50, false);
+        // but for OpenCV contour detection we want black bg
+        let bw = blackAndWhite(cell, 50);
 
-        // for OCR we want white bg
-        bw = blackAndWhite(cell, 50, false);
-        // but for OpenCV contour detection we want black bg...
-        wb = blackAndWhite(cell, 50, true);
+        let contours = findContours(bw);
 
-        let result = await getResult(bw, wb, 'col-' + x, useTesseract);
+        let validRectExists = false;
+
+        for (let i = 0; i < contours.size(); i++) {
+            let boundingRect = cv.boundingRect(contours.get(i));
+
+            // all numbers are taller than wide, so if this rect doesn't match it's almost certainly not a number
+            // and we can ignore it (it's either a checkmark next to 0, or the top part of a tree at the bottom of
+            // a number cell)
+            if (boundingRect.width > boundingRect.height) {
+                continue;
+            }
+
+            validRectExists = true;
+            colCells.push(bw.roi(boundingRect));
+            break;
+        }
+
+        if (!validRectExists) {
+            colCells.push(null);
+        }
+
+        // let result = await getResult(bw, wb, 'col-' + x, useTesseract);
         // console.log('top-result', result);
-        colNums.push(result);
+        // colNums.push(result);
 
         // break;
     }
 
-    //*
     // left column of numbers
     for (let y = 0; y < horizontalLines.length-1; y++) {
         let numRect = new cv.Rect(
@@ -588,21 +622,157 @@ async function runOcr(src, useTesseract = true) {
 
         let cell = src.roi(numRect);
 
-        // for OCR we want white bg
-        bw = blackAndWhite(cell, 50, false);
-        // but for OpenCV contour detection we want black bg...
-        wb = blackAndWhite(cell, 50, true);
+        // addCanvasImage(cell);
 
-        let result = await getResult(bw, wb, 'row-' + y, useTesseract);
-        // console.log('left-result', result);
-        rowNums.push(result);
+        // for Tesseract OCR we want white bg
+        // bw = blackAndWhite(cell, 50, false);
+        // but for OpenCV contour detection we want black bg
+        let bw = blackAndWhite(cell, 50);
 
-        // break;
+        let contours = findContours(bw);
+
+        let validRectExists = false;
+
+        for (let i = 0; i < contours.size(); i++) {
+            let boundingRect = cv.boundingRect(contours.get(i));
+
+            // all numbers are taller than wide, so if this rect doesn't match it's almost certainly not a number
+            // and we can ignore it (it's either a checkmark next to 0, or the top part of a tree at the bottom of
+            // a number cell).
+            if (boundingRect.width > boundingRect.height) {
+                continue;
+            }
+
+            // console.log('adding', i);
+
+            validRectExists = true;
+            rowCells.push(bw.roi(boundingRect));
+            break;
+        }
+
+        if (!validRectExists) {
+            rowCells.push(null);
+        }
     }
-    //*/
 
-    // console.log('cols', colNums);
-    // console.log('rows', rowNums);
+    // console.log('rowCells', rowCells);
+    // console.log('horizontalLines', horizontalLines);
+
+    if (rowCells.length + 1 !== horizontalLines.length) {
+        console.log('WRONG NUMBER OF BOUNDING RECTS FOR ROW CELLS');
+    }
+
+    if (colCells.length + 1 !== verticalLines.length) {
+        console.log('WRONG NUMBER OF BOUNDING RECTS FOR COL CELLS');
+    }
+
+    let minHeight = 9999;
+
+    // because we know each number is the same height (+/- a few pixels), we can crop out the
+    // tops of the trees at the bottom of any colCells. So figure out the min height
+    rowCells.forEach((rowCell) => {
+        if (rowCell === null) {
+            return;
+        }
+        if (rowCell.size().height < minHeight) {
+            minHeight = rowCell.size().height;
+        }
+
+        // addCanvasImage(rowCell);
+    });
+
+    colCells.forEach((colCell) => {
+        if (colCell === null) {
+            return;
+        }
+        if (colCell.size().height < minHeight) {
+            minHeight = colCell.size().height;
+        }
+
+        // addCanvasImage(colCell);
+    });
+
+    // and now go over them again and crop
+    for (x=0; x<colCells.length; x++) {
+        if (colCells[x] === null) {
+            continue;
+        }
+
+        let rect = new cv.Rect(
+            0,
+            0,
+            colCells[x].size().width,
+            Math.min(minHeight + 1, colCells[x].size().height) // cuz padding
+        );
+
+        colCells[x] = colCells[x].roi(rect);
+
+        // addCanvasImage(colCell);
+
+        // find the new bounding box, which should just be the number at this point
+        let contours = findContours(colCells[x]);
+
+        // and crop it one last time
+        if (contours.size() === 1) {
+            let boundingRect = cv.boundingRect(contours.get(0));
+
+            colCells[x] = colCells[x].roi(boundingRect);
+        }
+    };
+
+    // finally we can send them off for OCR
+
+    for (x=0; x<colCells.length; x++) {
+        if (colCells[x] === null) {
+            colNums.push('?');
+        } else {
+            let inverted = new cv.Mat()
+            cv.bitwise_not(colCells[x], inverted);
+
+            // addCanvasImage(colCells[x]);
+            // addCanvasImage(inverted);
+
+            let result = await getResult(colCells[x], inverted, 'col-' + x);
+            colNums.push(result);
+        }
+    }
+
+    for (y=0; y<rowCells.length; y++) {
+        if (rowCells[y] === null) {
+            rowNums.push('?');
+        } else {
+            let inverted = new cv.Mat()
+            cv.bitwise_not(rowCells[y], inverted);
+
+            // addCanvasImage(rowCells[y]);
+            // addCanvasImage(inverted);
+
+            let result = await getResult(rowCells[y], inverted, 'row-' + y);
+            rowNums.push(result);
+        }
+    };
+
+    if (processingDepth === 5) {
+        // let fontScale = (rowNums.length + colNums.length) / 5;
+
+        // wolfram alpha FTW?
+        let fontScale = Math.max((25 / 6) - ((rowNums.length + colNums.length) / 12), 1);
+        let fontSize = fontScale;
+
+        // draw result text on the image
+        for (let x = 0; x < verticalLines.length-1; x++) {
+            cv.putText(src, colNums[x], {x: verticalLines[x], y: gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
+        }
+
+        for (let y = 0; y < horizontalLines.length-1; y++) {
+            cv.putText(src, rowNums[y], {x: 0, y: horizontalLines[y] + gridTop}, cv.FONT_HERSHEY_PLAIN, fontScale, new cv.Scalar(255, 0, 0, 255), fontSize);
+        }
+
+        cv.imshow('canvasOutput', src);
+
+        console.log('cols', colNums);
+        console.log('rows', rowNums);
+    }
 
     printInput(colNums, rowNums, grid);
 }
@@ -625,46 +795,19 @@ function drawRectangle(src, rect, color) {
  * @param cell Black and white image of a single cell
  * @param id Unique ID for the Canvas or Promise
  */
-async function getResult(bw, wb, id, useTesseract) {
-    // Trim out 70% from all edges and then check if all pixels are black.
-    // If so, we can skip findText because it should be "?".
-    // Smaller values than this may create false-negatives because it could select only the empty center of 0.
-    // @todo: a bettter way would be to find the contours, then determine if any contours pass
-    //        through the ~center (or a 20% wide center area or something in case the number isn't quite centered)
-    let percent = .3;
-    let centerRect = new cv.Rect(
-        bw.size().width * percent,
-        bw.size().height * percent,
-        bw.size().width * (1 - (percent * 2)), // *2 because we need to trim both the left and right
-        bw.size().height * (1 - (percent * 2)),
-    );
-
-    let center = bw.roi(centerRect);
-
-    let colorSum = 0;
-    for (let i = 0; i < center.size().width; i++) {
-        for (let j = 0; j < center.size().height; j++) {
-            let filledPixel = parseInt(center.ucharPtr(i, j)[0]) < 255;
-            // console.log('pixel', pixel);
-
-            if (filledPixel) {
-                colorSum++;
-            }
-        }
-    }
-
-    if (colorSum === 0) {
+async function getResult(bw, wb, id) {
+    if (bw === null) {
         return '?';
     } else {
         let tempId = 'center-' + id;
         let current = document.querySelector('#'+tempId);
 
-        console.log('displaying '+id);
+        // console.log('displaying '+id);
 
         if (!current) {
             // display this in a new canvas for debugging
             let canvas = document.createElement('canvas');
-            canvas.setAttribute('class', 'center-placeholder');
+            canvas.setAttribute('class', 'center-placeholder hidden');
             canvas.setAttribute('id', tempId);
             document.querySelector('.canvasWrapper').append(canvas);
         }
@@ -672,160 +815,103 @@ async function getResult(bw, wb, id, useTesseract) {
         // cv.imshow(tempId, center);
         cv.imshow(tempId, wb);
 
-        let openCvResult = openCvOcr(wb);
+        let openCvResult = '';
 
-        // use both open CV and Tesseract to validate?
-        // TODO this probably a bad idea, but it seems to work well!
-        // i.e. openCv has issues with detecting 2, while Tesseract has issues detecting 4 and 6
-        // so combining the options here seems to work well because they each have their strengths
-        if (openCvResult == 2) {
-            openCvResult = findText(bw, id);
+        // use both open CV and Tesseract to validate? Tesseract returns a confidence level that we could maybe use?
+        // but for now, just use a toggle
+        if (useTesseract) {
+            openCvResult = await findText(bw, id);
+        } else {
+            openCvResult = await openCvOcr(wb);
         }
 
         return openCvResult;
-
-        // tesseract it!
-        // return useTesseract ? findText(bw, id) : openCvOcr(wb);
-        // return findText(bw, id);
     }
 }
 
 /**
  * Use template matching to determine which number this is.
- * This works well except for 1 along the top with a tree under it, because it matches 2 due to the tree poking up
- * TODO:
  *
  * @param wb White image on black background for bounding rectangle functionality
  */
-function openCvOcr(wb) {
-    let contours = findContours(wb);
+async function openCvOcr(wb) {
+    // scoring object for all source images (0-10)
+    let matches = {};
 
-    console.log('contours', contours.size());
+    // check numbers 0-10 to see which matches best
+    // https://docs.opencv.org/3.4/d8/dd1/tutorial_js_template_matching.html
+    for(let i=0; i<=10; i++) {
+        let ocrImage = wb.clone();
+        let num = cv.imread(document.querySelector('#bw-' + i));
 
-    let probableNumbers = [];
+        // num is 21 x 31
+        // ocr is 28 x 44
+        // ocr scaled should be 21x33 or 20 x 31
 
-    for (let i = 0; i < contours.size(); i++) {
-        // console.log('contour', contours.get(i));
+        // console.log('num ratio ' + i, ratio);
 
-        let boundingRect = cv.boundingRect(contours.get(i));
+        num = blackAndWhite(num, 50);
 
-        // console.log('bounding rect', boundingRect);
-
-        // all numbers are taller than wide, so if this rect doesn't match it's almost certainly not a number
-        if (boundingRect.width > boundingRect.height) {
-            continue;
-        }
-
-        probableNumbers.push(boundingRect);
-
-        // drawRectangle(wb, boundingRect, new cv.Scalar(130, 0, 0, 255));
-
-        // if (rect.y + rect.height > bottomCrop) {
-        //     bottomCrop = rect.y + rect.height;
-        // }
-        // if (rect.y < topCrop) {
-        //     topCrop = rect.y;
-        // }
-
-        // if (rect.x + rect.width > rightCrop) {
-        //     rightCrop = rect.x + rect.width;
-        // }
-        // if (rect.x < leftCrop) {
-        //     leftCrop = rect.x;
-        // }
-    }
-
-    if (probableNumbers.length === 0) {
-        return '?';
-    }
-
-    if (probableNumbers.length > 1) {
-        console.log('TOO MANY BOUNDING RECTANGLES');
-        return '?';
-    } else {
-        console.log('bw', bw);
-        bw = bw.roi(probableNumbers[0]);
-
-        let matches = {};
-
-        // check numbers 0-10 to see which matches best
-        // https://docs.opencv.org/3.4/d8/dd1/tutorial_js_template_matching.html
-        for(let i=0; i<=10; i++) {
-            let ocrImage = bw.clone();
-            let num = cv.imread(document.querySelector('#bw-' + i));
-
+        // scale down whichever is bigger to match the smaller height/width
+        // constrain to the bigger of num width or height
+        let dsize;
+        if (ocrImage.size().height > num.size().height) {
             let ratio = ocrImage.size().width / ocrImage.size().height;
 
-            // num is 21 x 31
-            // ocr is 28 x 44
-            // ocr scaled should be 21x33 or 20 x 31
-
-            // console.log('num ratio ' + i, ratio);
-
-            num = blackAndWhite(num, 50);
-
-            // scale to match the number's height/width
-            // constrain to the bigger of num width or height
-            let dsize;
             if (ocrImage.size().width / num.size().width > ocrImage.size().height / num.size().height) {
+                // console.log('resizing ocr with set width');
                 dsize = new cv.Size(num.size().width, num.size().width / ratio);
             } else {
+                // console.log('resizing ocr with set height');
                 dsize = new cv.Size(num.size().height * ratio, num.size().height);
             }
 
-            // console.log('ocr size', ocrImage.size());
-            // console.log('num size', num.size());
-            // console.log('new size', dsize);
             cv.resize(ocrImage, ocrImage, dsize);
+        } else {
+            let ratio = num.size().width / num.size().height;
 
-            let result = new cv.Mat();
-            let mask = new cv.Mat();
-            cv.matchTemplate(ocrImage, num, result, cv.TM_CCOEFF, mask);
+            if (num.size().width / num.size().width > num.size().height / num.size().height) {
+                // console.log('resizing num with set width');
+                dsize = new cv.Size(ocrImage.size().width, ocrImage.size().width / ratio);
+            } else {
+                // console.log('resizing num with set height');
+                dsize = new cv.Size(ocrImage.size().height * ratio, ocrImage.size().height);
+            }
 
-            // addCanvasImage(num);
-            // addCanvasImage(ocrImage);
-            // addCanvasImage(result);
-            // addCanvasImage(mask);
-
-            // return result;
-
-            // console.log('result', result);
-
-            let res = cv.minMaxLoc(result, mask);
-            let maxPoint = res.maxLoc;
-
-            // console.log('res', res);
-            // console.log('maxPoint', maxPoint);
-
-            matches[i] = res.maxVal;
-            // break;
+            cv.resize(num, num, dsize);
         }
 
-        console.log('matches', matches);
+        // addCanvasImage(num);
+        // addCanvasImage(ocrImage);
 
-        // https://stackoverflow.com/questions/27376295/getting-key-with-the-highest-value-from-object
-        let ocrResult = Object.keys(matches).reduce((a, b) => matches[a] > matches[b] ? a : b);
+        let result = new cv.Mat();
+        let mask = new cv.Mat();
+        cv.matchTemplate(ocrImage, num, result, cv.TM_CCOEFF_NORMED, mask);
 
-        console.log('OCR Result', ocrResult);
+        let res = cv.minMaxLoc(result, mask);
+        let max = res.maxVal;
 
-        return ocrResult;
+        // if the target image is more than twice as wide as the template image, it's very unlikely
+        // that this is the right match, so penalize it
+        // i.e. if we're looking at a 1, then every other target image except 1 will be too wide
+        if (num.size().width > ocrImage.size().width * 2) {
+            max -= .3;
+        }
+
+        matches[i] = max;
     }
 
+    console.log('matches', matches);
 
-    // essentially the width of a grid line
-    // let padding = 2;
+    // get the highest scoring image, and we'll consider that to be our result.
+    // TODO: future enhancement could be to get a confidence level?
+    //       and if it's too low, then we also use Tesseract?
+    // https://stackoverflow.com/questions/27376295/getting-key-with-the-highest-value-from-object
+    let ocrResult = Object.keys(matches).reduce((a, b) => matches[a] > matches[b] ? a : b);
 
-    // let rect = new cv.Rect(
-    //     leftCrop - padding,
-    //     topCrop - padding,
-    //     rightCrop - leftCrop + padding,
-    //     bottomCrop - topCrop + padding
-    // );
+    console.log('OCR Result', ocrResult);
 
-    contours.delete();
-
-    // return bw.roi(rect);
-    return bw;
+    return ocrResult;
 }
 
 function addCanvasImage(src) {
@@ -955,29 +1041,25 @@ function removeOutliers(lines) {
 }
 
 /**
- * OCR to determine which digit(s) are in the image
+ * Use Tesseract OCR to determine which digit(s) are in the image
  *
  * @param src black and white image of a number
  * @param id for the canvas
  */
 async function findText(src, id) {
     let canvas = document.createElement('canvas');
-    canvas.setAttribute('class', 'ocr-placeholder');
+    canvas.setAttribute('class', 'ocr-placeholder hidden');
     canvas.setAttribute('id', id);
-    // canvas.setAttribute('style', "display:none;");
 
     document.querySelector('body').append(canvas);
 
     cv.imshow(id, src);
 
-    // return the promise
     let result = await worker.recognize(document.getElementById(id));
 
-    if (isNaN(result.data.text)) {
-        return '?';
-    }
+    let resultText = parseInt(result.data.text);
 
-    return parseInt(result.data.text)
+    return isNaN(resultText) ? '?' : resultText;
 }
 
 // blur to help with edge detection and combat image compression?
