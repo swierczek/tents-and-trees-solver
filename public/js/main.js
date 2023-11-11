@@ -76,7 +76,15 @@ var onOpenCvReady = function() {
             item.classList.add('active');
 
             imgElement.src = item.src;
-            processImage();
+
+            // auto click button
+            if (item.classList.contains('small-cells')) {
+                smallCells.dispatchEvent(new Event("click"));
+            } else if (item.classList.contains('large-cells')) {
+                largeCells.dispatchEvent(new Event("click"));
+            } else {
+                processImage();
+            }
         });
     });
 
@@ -143,13 +151,6 @@ var onOpenCvReady = function() {
             updateStatus('');
             processImage();
         });
-    }
-
-    // auto click button
-    if (activeImage.classList.contains('small-cells')) {
-        smallCells.dispatchEvent(new Event("click"));
-    } else if (activeImage.classList.contains('large-cells')) {
-        largeCells.dispatchEvent(new Event("click"));
     }
 
     let solveIt = document.querySelector('#solve-it');
