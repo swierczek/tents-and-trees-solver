@@ -244,7 +244,7 @@ var processImage = function() {
 
     let src = cv.imread(imgElement);
 
-    // imageMetadata(src);
+    imageMetadata(src);
 
     let textarea = document.querySelector('#puzzleInput');
     textarea.setAttribute('style', 'display:none');
