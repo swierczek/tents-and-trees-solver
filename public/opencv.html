@@ -8,14 +8,26 @@
     <style>
         .wrapper {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
         }
-        .inputoutput {
-            width: 70%;
+        @media screen and (min-width: 780px) {
+            .wrapper {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .inputoutput {
+                width: 70%;
+                max-width: 600px;
+            }
         }
-        .inputoutput > * {
+
+        #imageSrc {
             width: 100%;
         }
+
+        /*.inputoutput > * {
+            width: 100%;
+        }*/
 
         .placeholder {
             width: 100%;
@@ -36,9 +48,11 @@
             border-color: rgb(0, 255, 0);
         }
 
-        #imageSrc {
-            width: 660px;
-        }
+        /*@media screen and (min-width: 780px) {
+            #imageSrc {
+                width: 660px;
+            }
+        }*/
 
         #puzzleSolution {
             font-family: monospace;
@@ -68,6 +82,23 @@
             width: 100%;
         }
 
+        .parameter-buttons button {
+            width: 40%;
+            display: inline-block;
+        }
+
+        button {
+            padding: 5px;
+        }
+
+        #solve-it {
+            margin-top: 10px;
+        }
+
+        .mb10 {
+            margin-bottom: 10px;
+        }
+
         option {
             padding: 0;
             padding-top: 10px;
@@ -76,41 +107,99 @@
         .hidden {
             display: none;
         }
+
+        #canvasOutput {
+            width: 100%;
+        }
+
+        @media screen and (min-width: 780px) {
+            #canvasOutput {
+                max-width: 450px;
+            }
+        }
+
+        .placeholder.disabled img {
+            opacity: .5;
+        }
     </style>
 </head>
 
 <body>
     <div class="wrapper">
+        <div class="inputoutput input">
+            <div class="canvasWrapper hidden"></div>
 
-        <div class="inputoutput">
-            <div class="canvasWrapper"></div>
+            <div class="input">
+                <label><span class="status">OpenCV is loading...</span> <input type="file" id="fileInput" name="file" disabled/></label>
 
-            <form action="http://localhost:8087/php/tents.php" method="GET">
-                <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
-                <!-- fake puzzle solution goes with trees-6 -->
-                <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
-                <p id="puzzleSolution"></p>
-            </form>
+                <p>Or select a predefined image</p>
 
-            <div class="caption">imageSrc <input type="file" id="fileInput" name="file" /></div>
+                <div class="placeholder disabled">
+                    <!-- <img title="trees" src="/images/trees.png" class="" /> -->
+                    <img title="trees-1" src="/images/trees-1.png" class="large-cells" />
+                    <!-- <img title="trees-2" src="/images/trees-2.png" class="" /> -->
+                    <img title="trees-4" src="/images/trees-4.png" class="large-cells" />
+                    <img title="trees-5" src="/images/trees-5.png" class="large-cells" /> <!-- miscategorized empty cell -->
+                    <img title="trees-6" src="/images/trees-6.png" class="large-cells" /> <!-- use this one with the dummy solution -->
+                    <img title="trees-7" src="/images/trees-7.png" class="large-cells" />
+                    <img title="trees-8" src="/images/trees-8.png" class="large-cells" />
+                    <!-- <img title="trees-9" src="/images/trees-9.png" class="" /> -->
+                    <img title="trees-10" src="/images/trees-10.png" class="large-cells" />
+                    <img title="trees-11" src="/images/trees-11.png" class="large-cells" />
+                    <img title="trees-13" src="/images/trees-13.png" class="large-cells" />
+                    <img title="trees-14" src="/images/trees-14.png" class="large-cells" />
+                    <img title="trees-15" src="/images/trees-15.png" class="large-cells" /> <!-- lots of ? -->
+                    <img title="trees-16" src="/images/trees-16.png" class="large-cells" />
 
-            <!-- <label><input type="checkbox" name="ocr" id="ocr-checkbox" value="yes" /> Send for OCR?</label> -->
-            <p id="status">OpenCV.js is loading...</p>
+                    <img title="trees-20" src="/images/trees-20.png" class="large-cells" />
+                    <img title="trees-19" src="/images/trees-19.png" class="large-cells" />
+                    <img title="trees-21" src="/images/trees-21.png" class="large-cells" />
+                    <img title="trees-22" src="/images/trees-22.png" class="small-cells" /> <!-- off by 1 error? -->
 
-            <button id="large-cells">Few grid items (large cells)</button>
-            <button id="small-cells">Lotsa grid items (teeny cells)</button>
+                    <img title="trees-23" src="/images/trees-23.png" class="large-cells" />
+                    <img title="trees-24" src="/images/trees-24.png" class="small-cells" /> <!-- missing horizontal line -->
+                    <img title="trees-25" src="/images/trees-25.png" class="small-cells" /> <!-- misclassifying 0 as 10 -->
 
-            <details>
+                    <img title="6x9-b20-small" src="/images/others/6x9-b20-small.png"   class="large-cells" /> <!-- not solving via browser, but is via cli... -->
+                    <img title="nov-5-d1-full" src="/images/others/nov-5-d1-full.png"   class="large-cells" />
+                    <img title="nov-5-d1-small" src="/images/others/nov-5-d1-small.png" class="large-cells" />
+                    <img title="nov-5-d2-full" src="/images/others/nov-5-d2-full.png"   class="large-cells" />
+                    <img title="nov-5-d2-small" src="/images/others/nov-5-d2-small.png" class="large-cells" />
+                    <img title="nov-5-e1-full" src="/images/others/nov-5-e1-full.png"   class="small-cells" />
+                    <img title="nov-5-e2-full" src="/images/others/nov-5-e2-full.png"   class="small-cells" />
+                    <img title="nov-6-a5-small" src="/images/others/nov-6-a5-small.png" class="large-cells" />
+                    <img title="nov-6-e2-full" src="/images/others/nov-6-e2-full.png"   class="large-cells" />
+                    <img title="nov-6-e2-small" src="/images/others/nov-6-e2-small.png" class="large-cells" />
+                    <img title="nov-6-g2-full" src="/images/others/nov-6-g2-full.png"   class="large-cells" />
+                    <img title="nov-6-g2-small" src="/images/others/nov-6-g2-small.png" class="large-cells" />
+
+                    <img title="23x23-a1" src="/images/others/23x23-a1.png" class="small-cells" />
+                    <img title="23x23-a4" src="/images/others/23x23-a4.png" class="small-cells" />
+                </div>
+
+                <img id="imageSrc" class="hidden" />
+            </div>
+        </div>
+
+        <div class="inputOutput configure">
+            <canvas id="canvasOutput"></canvas>
+
+            <div class="parameter-buttons mb10">
+                <button id="large-cells">Few grid items (large cells)</button>
+                <button id="small-cells">Lotsa grid items (teeny cells)</button>
+            </div>
+
+            <details class="mb10">
                 <summary>Advanced threshold controls</summary>
                 <label>BW Threshold: <span></span><input type="range" id="bwThreshold" min="30" max="80" /></label>
                 <label>Hough Threshold: <span></span><input type="range" id="houghThreshold" min="40" max="100" /></label>
             </details>
 
-            <label><input type="checkbox" id="use-tesseract" />Use Tesseract?</label>
+            <label class="mb10"><input type="checkbox" id="use-tesseract" />Use Tesseract?</label>
 
-            <label>
-                Processing depth: <span>3</span><input type="range" id="depth" min="0" max="5" value="3" list="markers" />
-                <datalist id="markers">
+            <label class="mb10">
+                Processing depth: <span id="depthOutput">3</span><input type="range" id="depth" min="0" max="5" value="3" list="markers" />
+                <datalist id="markers" class="hidden">
                     <option value="0" label="Black and white"></option>
                     <option value="1" label="Edge detection"></option>
                     <option value="2" label="Solid lines"></option>
@@ -123,69 +212,29 @@
 
             <button id="solve-it" disabled>OCR engine loading...</button>
 
-            <div class="placeholder">
-                <!-- <img title="trees" src="/images/trees.png" class="" /> -->
-                <img title="trees-1" src="/images/trees-1.png" class="large-cells" />
-                <!-- <img title="trees-2" src="/images/trees-2.png" class="" /> -->
-                <img title="trees-4" src="/images/trees-4.png" class="large-cells" />
-                <img title="trees-5" src="/images/trees-5.png" class="large-cells" /> <!-- miscategorized empty cell -->
-                <img title="trees-6" src="/images/trees-6.png" class="large-cells" /> <!-- use this one with the dummy solution -->
-                <img title="trees-7" src="/images/trees-7.png" class="large-cells" />
-                <img title="trees-8" src="/images/trees-8.png" class="large-cells" />
-                <!-- <img title="trees-9" src="/images/trees-9.png" class="" /> -->
-                <img title="trees-10" src="/images/trees-10.png" class="large-cells" />
-                <img title="trees-11" src="/images/trees-11.png" class="large-cells" />
-                <img title="trees-13" src="/images/trees-13.png" class="large-cells" />
-                <img title="trees-14" src="/images/trees-14.png" class="large-cells" />
-                <img title="trees-15" src="/images/trees-15.png" class="large-cells" /> <!-- lots of ? -->
-                <img title="trees-16" src="/images/trees-16.png" class="large-cells" />
+            <p id="status">OpenCV.js is loading...</p>
 
-                <img title="trees-20" src="/images/trees-20.png" class="large-cells" />
-                <img title="trees-19" src="/images/trees-19.png" class="large-cells" />
-                <img title="trees-21" src="/images/trees-21.png" class="large-cells" />
-                <img title="trees-22" src="/images/trees-22.png" class="small-cells" /> <!-- off by 1 error? -->
-
-                <img title="trees-23" src="/images/trees-23.png" class="large-cells" />
-                <img title="trees-24" src="/images/trees-24.png" class="small-cells" /> <!-- missing horizontal line -->
-                <img title="trees-25" src="/images/trees-25.png" class="small-cells" /> <!-- misclassifying 0 as 10 -->
-
-                <img title="6x9-b20-small" src="/images/others/6x9-b20-small.png"   class="large-cells" /> <!-- not solving via browser, but is via cli... -->
-                <img title="nov-5-d1-full" src="/images/others/nov-5-d1-full.png"   class="large-cells" />
-                <img title="nov-5-d1-small" src="/images/others/nov-5-d1-small.png" class="large-cells" />
-                <img title="nov-5-d2-full" src="/images/others/nov-5-d2-full.png"   class="large-cells" />
-                <img title="nov-5-d2-small" src="/images/others/nov-5-d2-small.png" class="large-cells" />
-                <img title="nov-5-e1-full" src="/images/others/nov-5-e1-full.png"   class="small-cells" />
-                <img title="nov-5-e2-full" src="/images/others/nov-5-e2-full.png"   class="small-cells" />
-                <img title="nov-6-a5-small" src="/images/others/nov-6-a5-small.png" class="large-cells" />
-                <img title="nov-6-e2-full" src="/images/others/nov-6-e2-full.png"   class="large-cells" />
-                <img title="nov-6-e2-small" src="/images/others/nov-6-e2-small.png" class="large-cells" />
-                <img title="nov-6-g2-full" src="/images/others/nov-6-g2-full.png"   class="large-cells" />
-                <img title="nov-6-g2-small" src="/images/others/nov-6-g2-small.png" class="large-cells" />
-
-                <img title="23x23-a1" src="/images/others/23x23-a1.png" class="small-cells" />
-                <img title="23x23-a4" src="/images/others/23x23-a4.png" class="small-cells" />
-            </div>
-
-            <img id="imageSrc" alt="No Image" />
-        </div>
-        <div class="inputoutput">
-            <canvas id="canvasOutput"></canvas>
-            <canvas id="canvasTemp"></canvas>
+            <form action="http://localhost:8087/php/tents.php" method="GET">
+                <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
+                <!-- fake puzzle solution goes with trees-6 -->
+                <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
+                <p id="puzzleSolution" class="hidden"></p>
+            </form>
         </div>
 
-        <div class="staging-area">
-            <img id="tent" src="/images/tent.png" class="hidden" />
-            <img id="bw-0" src="/images/0-bw.png" class="hidden" />
-            <img id="bw-1" src="/images/1-bw.png" class="hidden" />
-            <img id="bw-2" src="/images/2-bw.png" class="hidden" />
-            <img id="bw-3" src="/images/3-bw.png" class="hidden" />
-            <img id="bw-4" src="/images/4-bw.png" class="hidden" />
-            <img id="bw-5" src="/images/5-bw.png" class="hidden" />
-            <img id="bw-6" src="/images/6-bw.png" class="hidden" />
-            <img id="bw-7" src="/images/7-bw.png" class="hidden" />
-            <img id="bw-8" src="/images/8-bw.png" class="hidden" />
-            <img id="bw-9" src="/images/9-bw.png" class="hidden" />
-            <img id="bw-10" src="/images/10-bw.png" class="hidden" />
+        <div class="staging-area hidden">
+            <img id="tent" src="/images/tent.png" />
+            <img id="bw-0" src="/images/0-bw.png" />
+            <img id="bw-1" src="/images/1-bw.png" />
+            <img id="bw-2" src="/images/2-bw.png" />
+            <img id="bw-3" src="/images/3-bw.png" />
+            <img id="bw-4" src="/images/4-bw.png" />
+            <img id="bw-5" src="/images/5-bw.png" />
+            <img id="bw-6" src="/images/6-bw.png" />
+            <img id="bw-7" src="/images/7-bw.png" />
+            <img id="bw-8" src="/images/8-bw.png" />
+            <img id="bw-9" src="/images/9-bw.png" />
+            <img id="bw-10" src="/images/10-bw.png" />
         </div>
     </div>
     <script src="/js/main.js"></script>

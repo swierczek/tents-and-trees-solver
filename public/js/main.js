@@ -63,10 +63,13 @@ var onOpenCvReady = function() {
     console.log('opencv ready');
     updateStatus('OpenCV.js is ready');
 
+    document.querySelector('.status').innerText = 'Select a file';
+    document.querySelector('#fileInput').removeAttribute('disabled');
+    document.querySelector('.placeholder').classList.remove('disabled');
+
     let placeholders = document.querySelectorAll('.placeholder img');
     placeholders.forEach(function(item, index) {
         item.addEventListener('click', function(e) {
-            updateStatus('');
             // updateStatus('New image clicked...');
 
             let active = document.querySelector('.placeholder img.active');
@@ -97,7 +100,7 @@ var onOpenCvReady = function() {
         depthSlider.value = 5; // reset it on page load (show the grid)
         processingDepth = parseInt(depthSlider.value);
         depthSlider.addEventListener('input', function(e) {
-            event.target.previousElementSibling.innerText = event.target.value;
+            event.target.previousElementSibling.innerText = document.querySelector('#markers option[value="'+event.target.value+'"]').getAttribute('label');
             processingDepth = parseInt(this.value);
             processImage();
         });
@@ -116,7 +119,6 @@ var onOpenCvReady = function() {
             houghSlider.value = houghThreshold;
             houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
 
-            updateStatus('');
             processImage();
         });
     }
@@ -134,7 +136,6 @@ var onOpenCvReady = function() {
             houghSlider.value = houghThreshold;
             houghSlider.closest('label').querySelector('span').innerText = houghThreshold;
 
-            updateStatus('');
             processImage();
         });
     }
@@ -145,7 +146,6 @@ var onOpenCvReady = function() {
         tesseractCheckbox.addEventListener('change', function(e) {
             useTesseract = tesseractCheckbox.checked;
 
-            updateStatus('');
             processImage();
         });
     }
@@ -219,6 +219,7 @@ function initSlider(id) {
                 houghThreshold = value;
 
             }
+
             processImage();
         });
         slider.dispatchEvent(new Event("input"));
@@ -227,7 +228,8 @@ function initSlider(id) {
 
 
 var processImage = function() {
-    // updateStatus('Processing image...');
+    updateStatus('');
+    updateStatus('Processing image...');
 
     grid = [];
     verticalLines = [];
@@ -235,6 +237,10 @@ var processImage = function() {
     completedOCRCount = 0;
 
     let form = document.querySelector('form');
+
+    if (!imgElement.src) {
+        return;
+    }
 
     let src = cv.imread(imgElement);
 
