@@ -182,6 +182,9 @@ class TentSolver {
 
             // -x-xxxx-x- means there are 2  -x- patterns
             '-(x)-x{2,}-(x)-' => self::GRASS,
+
+            '-x{1,}--x{1,}-(x)-' => self::GRASS,
+            '--x{1,}-x{1,}-(x)-' => self::GRASS,
         ],
         4 => [
             // alternating ox means the xs in other rows will be grass
@@ -191,6 +194,9 @@ class TentSolver {
             '--x{1,}--x{1,}--x{1,}(-)' => self::TENT,
 
             '(--)x{1,}(--)x{1,}(--)' => self::GRASS,
+
+            '(--)x(--)x{2,}-x-' => self::GRASS,
+            '--x--x{2,}(-)x(-)' => self::TENT,
         ],
         5 => [
             // alternating ox means the xs in other rows will be grass

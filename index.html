@@ -10,7 +10,7 @@
             display: grid;
             grid-template-columns: 1fr;
         }
-        @media screen and (min-width: 780px) {
+        @media screen and (min-width: 1200px) {
             .wrapper {
                 grid-template-columns: 1fr 1fr;
             }
@@ -198,7 +198,7 @@
             <label class="mb10"><input type="checkbox" id="use-tesseract" />Use Tesseract?</label>
 
             <label class="mb10">
-                Processing depth: <span id="depthOutput">3</span><input type="range" id="depth" min="0" max="5" value="3" list="markers" />
+                Processing depth: <span id="depthOutput">Tree detection</span><input type="range" id="depth" min="0" max="5" value="3" list="markers" />
                 <datalist id="markers" class="hidden">
                     <option value="0" label="Black and white"></option>
                     <option value="1" label="Edge detection"></option>
@@ -206,7 +206,6 @@
                     <option value="3" label="Grid lines"></option>
                     <option value="4" label="Tree detection"></option>
                     <option value="5" label="OCR"></option>
-                    <!-- <option value="5"></option> -->
                 </datalist>
             </label>
 
@@ -214,7 +213,7 @@
 
             <p id="status">OpenCV.js is loading...</p>
 
-            <form action="http://localhost:8087/php/tents.php" method="GET">
+            <form action="/php/tents.php" method="GET">
                 <textarea id="puzzleInput" name="puzzleInput" style="display:none"></textarea>
                 <!-- fake puzzle solution goes with trees-6 -->
                 <!-- <p id="puzzleSolution">[{"x":"0","y":"1"},{"x":"3","y":"0"},{"x":"0","y":"4"},{"x":"2","y":"3"},{"x":"4","y":"3"}]</p> -->
